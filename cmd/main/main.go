@@ -13,6 +13,7 @@ import (
 	"strings"
 	"github.com/polarbirds/lunde/internal/meme"
 	"github.com/polarbirds/lunde/internal/command"
+	"errors"
 )
 
 var (
@@ -61,9 +62,8 @@ func messageCreate(s *discordgo.Session, m *discordgo.MessageCreate) {
 			return
 		}
 
-		var msg meme.Post
-
 		if source == "reddit" {
+			var msg meme.Post
 			msg, err = reddit.GetMeme(scheme, argument)
 			if msg.Embed.Title != "" {
 				s.ChannelMessageSendEmbed(m.ChannelID, &msg.Embed)
@@ -78,7 +78,7 @@ func messageCreate(s *discordgo.Session, m *discordgo.MessageCreate) {
 		} else if source == "pumpit"{
 			s.ChannelMessageSend(m.ChannelID, "https://cdn.discordapp.com/attachments/145942475805032449/471311185782898698/pumpItInTheClub.gif")
 		} else {
-			log.Errorf("unsupported source %q", source)
+			err = errors.New(fmt.Sprintf("unsupported source %q", source))
 		}
 
 		if err != nil {
