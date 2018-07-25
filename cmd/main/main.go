@@ -67,13 +67,20 @@ func messageCreate(s *discordgo.Session, m *discordgo.MessageCreate) {
 			var msg meme.Post
 			msg, err = reddit.GetMeme(scheme, argument)
 			if msg.Embed.Title != "" {
-				_ ,discErr = s.ChannelMessageSendEmbed(m.ChannelID, &msg.Embed)
+				_, discErr = s.ChannelMessageSendEmbed(m.ChannelID, &msg.Embed)
 			} else {
 				_, discErr = s.ChannelMessageSend(m.ChannelID, fmt.Sprintf("%s\n%s", msg.Title, msg.Message))
 			}
-		} else if source == "speak" {
-			index := strings.Index(m.Content, "!speak")
-			_, discErr = s.ChannelMessageSendTTS(m.ChannelID, m.Content[index+len("!speak"):])
+		} else if source == "shrug" {
+			discErr = s.ChannelMessageDelete(m.ChannelID, m.ID)
+			_, discErr = s.ChannelMessageSend(m.ChannelID, "¯\\_(ツ)_/¯")
+		} else if source == "say" {
+			index := strings.Index(m.Content, "!say")
+			text := strings.Trim(m.Content[index+len("!say"):], " ")
+			if len(text) > 0 {
+				discErr = s.ChannelMessageDelete(m.ChannelID, m.ID)
+				_, discErr = s.ChannelMessageSendTTS(m.ChannelID, text)
+			}
 		} else if source == "pumpit" {
 			_, discErr = s.ChannelMessageSend(m.ChannelID, "https://cdn.discordapp.com/attachments/145942475805032449/471311185782898698/pumpItInTheClub.gif")
 		} else if source == "status" {
