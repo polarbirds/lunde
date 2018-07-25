@@ -75,8 +75,10 @@ func messageCreate(s *discordgo.Session, m *discordgo.MessageCreate) {
 			cmd := m.Content[index+len("!speak"):]
 			s.ChannelMessageSendTTS(m.ChannelID, cmd)
 
-		} else if source == "pumpit"{
+		} else if source == "pumpit" {
 			s.ChannelMessageSend(m.ChannelID, "https://cdn.discordapp.com/attachments/145942475805032449/471311185782898698/pumpItInTheClub.gif")
+		} else if source == "clear" {
+			s.UpdateStatus(0, "")
 		} else {
 			err = errors.New(fmt.Sprintf("unsupported source %q", source))
 		}
@@ -84,7 +86,6 @@ func messageCreate(s *discordgo.Session, m *discordgo.MessageCreate) {
 		if err != nil {
 			log.Error(err)
 			s.UpdateStatus(0, err.Error())
-			return
 		}
 	}
 }

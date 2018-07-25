@@ -41,7 +41,12 @@ func GetMeme(scheme string, argument string) (meme.Post, error) {
 	}
 
 	msg.Title = resp.Title
-	msg.Message = resp.URL
+	if resp.Selftext != "" {
+		msg.Message = resp.Selftext
+	} else {
+		msg.Message = resp.URL
+	}
+
 	if isEmbeddable(resp.URL) {
 		a := discordgo.MessageEmbedImage{URL: resp.URL}
 		msg.Embed = discordgo.MessageEmbed{
