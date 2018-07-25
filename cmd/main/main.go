@@ -1,18 +1,18 @@
 package main
 
 import (
+	"errors"
 	"flag"
 	"fmt"
-	"os"
-	"os/signal"
-	"syscall"
 	"github.com/bwmarrin/discordgo"
+	"github.com/polarbirds/lunde/internal/command"
+	"github.com/polarbirds/lunde/internal/meme"
 	"github.com/polarbirds/lunde/pkg/reddit"
 	log "github.com/sirupsen/logrus"
+	"os"
+	"os/signal"
 	"strings"
-	"github.com/polarbirds/lunde/internal/meme"
-	"github.com/polarbirds/lunde/internal/command"
-	"errors"
+	"syscall"
 )
 
 var (

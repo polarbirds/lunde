@@ -1,8 +1,8 @@
 package command
 
 import (
-	"strings"
 	"errors"
+	"strings"
 )
 
 var (
@@ -14,7 +14,7 @@ func GetCommand(message string) (string, string, string, error) {
 	if index == -1 {
 		return "", "", "", errors.New("no scheme found")
 	}
-	command := message[index + 1:]
+	command := message[index+1:]
 	if len(command) == 0 || command[0] == ' ' {
 		return "", "", "", errors.New("invalid command")
 	}

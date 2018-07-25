@@ -1,15 +1,15 @@
 package reddit
 
 import (
-	"errors"
-	"github.com/polarbirds/lunde/internal/meme"
-	"strings"
-	"github.com/bwmarrin/discordgo"
-	"github.com/jzelinskie/geddit"
 	"encoding/json"
-		"github.com/google/go-querystring/query"
+	"errors"
 	"fmt"
+	"github.com/bwmarrin/discordgo"
+	"github.com/google/go-querystring/query"
+	"github.com/jzelinskie/geddit"
+	"github.com/polarbirds/lunde/internal/meme"
 	"net/http"
+	"strings"
 )
 
 var (
