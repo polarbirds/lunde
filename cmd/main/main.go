@@ -76,8 +76,6 @@ func messageCreate(s *discordgo.Session, m *discordgo.MessageCreate) {
 			_, discErr = s.ChannelMessageSendTTS(m.ChannelID, m.Content[index+len("!speak"):])
 		} else if source == "pumpit" {
 			_, discErr = s.ChannelMessageSend(m.ChannelID, "https://cdn.discordapp.com/attachments/145942475805032449/471311185782898698/pumpItInTheClub.gif")
-		} else if source == "clear" {
-			discErr = s.UpdateStatus(0, "")
 		} else if source == "status" {
 			index := strings.Index(m.Content, "!status")
 			discErr = s.UpdateStatus(0, m.Content[index+len("!status"):])
