@@ -26,8 +26,6 @@ func init() {
 }
 
 func main() {
-
-	reddit.GetPost("top", "funny")
 	dg, err := discordgo.New("Bot " + Token)
 	if err != nil {
 		fmt.Println("error creating Discord session,", err)
@@ -59,6 +57,7 @@ func messageCreate(s *discordgo.Session, m *discordgo.MessageCreate) {
 		source, scheme, argument, err := command.GetCommand(m.Content)
 		if err != nil {
 			log.Error(err)
+			s.UpdateStatus(0, err.Error())
 			return
 		}
 
@@ -75,14 +74,17 @@ func messageCreate(s *discordgo.Session, m *discordgo.MessageCreate) {
 			index := strings.Index(m.Content, "!speak")
 			cmd := m.Content[index+len("!speak"):]
 			s.ChannelMessageSendTTS(m.ChannelID, cmd)
+
+		} else if source == "pumpit"{
+			s.ChannelMessageSend(m.ChannelID, "https://cdn.discordapp.com/attachments/145942475805032449/471311185782898698/pumpItInTheClub.gif")
 		} else {
 			log.Errorf("unsupported source %q", source)
 		}
 
 		if err != nil {
 			log.Error(err)
+			s.UpdateStatus(0, err.Error())
 			return
 		}
-
 	}
 }
