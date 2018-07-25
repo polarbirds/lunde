@@ -6,7 +6,6 @@ import (
 	"os"
 	"os/signal"
 	"syscall"
-
 	"github.com/bwmarrin/discordgo"
 	"github.com/polarbirds/lunde/pkg/reddit"
 	log "github.com/sirupsen/logrus"
@@ -62,23 +61,26 @@ func messageCreate(s *discordgo.Session, m *discordgo.MessageCreate) {
 			return
 		}
 
+		var discErr error
+
 		if source == "reddit" {
 			var msg meme.Post
 			msg, err = reddit.GetMeme(scheme, argument)
 			if msg.Embed.Title != "" {
-				s.ChannelMessageSendEmbed(m.ChannelID, &msg.Embed)
+				_ ,discErr = s.ChannelMessageSendEmbed(m.ChannelID, &msg.Embed)
 			} else {
-				s.ChannelMessageSend(m.ChannelID, fmt.Sprintf("%s\n%s", msg.Title, msg.Message))
+				_, discErr = s.ChannelMessageSend(m.ChannelID, fmt.Sprintf("%s\n%s", msg.Title, msg.Message))
 			}
 		} else if source == "speak" {
 			index := strings.Index(m.Content, "!speak")
-			cmd := m.Content[index+len("!speak"):]
-			s.ChannelMessageSendTTS(m.ChannelID, cmd)
-
+			_, discErr = s.ChannelMessageSendTTS(m.ChannelID, m.Content[index+len("!speak"):])
 		} else if source == "pumpit" {
-			s.ChannelMessageSend(m.ChannelID, "https://cdn.discordapp.com/attachments/145942475805032449/471311185782898698/pumpItInTheClub.gif")
+			_, discErr = s.ChannelMessageSend(m.ChannelID, "https://cdn.discordapp.com/attachments/145942475805032449/471311185782898698/pumpItInTheClub.gif")
 		} else if source == "clear" {
-			s.UpdateStatus(0, "")
+			discErr = s.UpdateStatus(0, "")
+		} else if source == "status" {
+			index := strings.Index(m.Content, "!status")
+			discErr = s.UpdateStatus(0, m.Content[index+len("!status"):])
 		} else {
 			err = errors.New(fmt.Sprintf("unsupported source %q", source))
 		}
@@ -86,6 +88,10 @@ func messageCreate(s *discordgo.Session, m *discordgo.MessageCreate) {
 		if err != nil {
 			log.Error(err)
 			s.UpdateStatus(0, err.Error())
+		}
+
+		if discErr != nil {
+			log.Error(discErr)
 		}
 	}
 }
