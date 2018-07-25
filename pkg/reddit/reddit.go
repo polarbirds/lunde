@@ -7,8 +7,7 @@ import (
 	"github.com/bwmarrin/discordgo"
 	"github.com/jzelinskie/geddit"
 	"encoding/json"
-	"github.com/sirupsen/logrus"
-	"github.com/google/go-querystring/query"
+		"github.com/google/go-querystring/query"
 	"fmt"
 	"net/http"
 )
@@ -43,6 +42,9 @@ func GetMeme(scheme string, argument string) (meme.Post, error) {
 	msg.Title = resp.Title
 	if resp.Selftext != "" {
 		msg.Message = resp.Selftext
+		if len(msg.Message) > 1999 {
+			msg.Message = msg.Message[:1999]
+		}
 	} else {
 		msg.Message = resp.URL
 	}
@@ -74,7 +76,7 @@ func GetPost(scheme string, subreddit string) (*geddit.Submission, error) {
 	}
 
 	if err != nil {
-		logrus.Error(err)
+		return nil, err
 	}
 
 	if len(submissions) < 1 {
