@@ -8,4 +8,3 @@
 * !reddit [sort] [subreddit]
 * !pumpit
 * !status [new status]
-* !clear
