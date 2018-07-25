@@ -1,2 +1,5 @@
 .idea
 vendor/
+
+# Gox built files
+lunde_*
