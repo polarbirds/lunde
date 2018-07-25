@@ -1,18 +1,18 @@
 package main
 
 import (
+	"errors"
 	"flag"
 	"fmt"
-	"os"
-	"os/signal"
-	"syscall"
 	"github.com/bwmarrin/discordgo"
+	"github.com/polarbirds/lunde/internal/command"
+	"github.com/polarbirds/lunde/internal/meme"
 	"github.com/polarbirds/lunde/pkg/reddit"
 	log "github.com/sirupsen/logrus"
+	"os"
+	"os/signal"
 	"strings"
-	"github.com/polarbirds/lunde/internal/meme"
-	"github.com/polarbirds/lunde/internal/command"
-	"errors"
+	"syscall"
 )
 
 var (
@@ -67,7 +67,7 @@ func messageCreate(s *discordgo.Session, m *discordgo.MessageCreate) {
 			var msg meme.Post
 			msg, err = reddit.GetMeme(scheme, argument)
 			if msg.Embed.Title != "" {
-				_ ,discErr = s.ChannelMessageSendEmbed(m.ChannelID, &msg.Embed)
+				_, discErr = s.ChannelMessageSendEmbed(m.ChannelID, &msg.Embed)
 			} else {
 				_, discErr = s.ChannelMessageSend(m.ChannelID, fmt.Sprintf("%s\n%s", msg.Title, msg.Message))
 			}
