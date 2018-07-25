@@ -3,6 +3,10 @@ go:
   - "1.10"
 
 before_install:
+  # Dependency tool (dep)
+  - curl https://raw.githubusercontent.com/golang/dep/master/install.sh | sh  
+  - dep ensure
+  # Build tool (gox)
   - go get github.com/mitchellh/gox
 install:
   - # skip
