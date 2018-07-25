@@ -5,6 +5,7 @@
 
 ## Usage
 
-* !ping
-* !reddit top funny
-
+* !reddit [sort] [subreddit]
+* !pumpit
+* !status [new status]
+* !clear
