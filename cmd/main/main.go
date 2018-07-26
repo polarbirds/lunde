@@ -63,7 +63,8 @@ func messageCreate(s *discordgo.Session, m *discordgo.MessageCreate) {
 
 		var discErr error
 
-		if source == "reddit" {
+		switch strings.ToLower(source) {
+		case "reddit":
 			var msg meme.Post
 			msg, err = reddit.GetMeme(scheme, argument)
 			if msg.Embed.Title != "" {
@@ -71,22 +72,22 @@ func messageCreate(s *discordgo.Session, m *discordgo.MessageCreate) {
 			} else {
 				_, discErr = s.ChannelMessageSend(m.ChannelID, fmt.Sprintf("%s\n%s", msg.Title, msg.Message))
 			}
-		} else if source == "shrug" {
+		case "shrug":
 			discErr = s.ChannelMessageDelete(m.ChannelID, m.ID)
 			_, discErr = s.ChannelMessageSend(m.ChannelID, "¯\\_(ツ)_/¯")
-		} else if source == "say" {
-			index := strings.Index(m.Content, "!say")
+		case "say":
+			index := strings.Index(strings.ToLower(m.Content), "!say")
 			text := strings.Trim(m.Content[index+len("!say"):], " ")
 			if len(text) > 0 {
 				discErr = s.ChannelMessageDelete(m.ChannelID, m.ID)
 				_, discErr = s.ChannelMessageSendTTS(m.ChannelID, text)
 			}
-		} else if source == "pumpit" {
+		case "pumpit":
 			_, discErr = s.ChannelMessageSend(m.ChannelID, "https://cdn.discordapp.com/attachments/145942475805032449/471311185782898698/pumpItInTheClub.gif")
-		} else if source == "status" {
-			index := strings.Index(m.Content, "!status")
+		case "status":
+			index := strings.Index(strings.ToLower(m.Content), "!status")
 			discErr = s.UpdateStatus(0, m.Content[index+len("!status"):])
-		} else {
+		default:
 			err = errors.New(fmt.Sprintf("unsupported source %q", source))
 		}
 
