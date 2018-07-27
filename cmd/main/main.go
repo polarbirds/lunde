@@ -83,10 +83,29 @@ func messageCreate(s *discordgo.Session, m *discordgo.MessageCreate) {
 				_, discErr = s.ChannelMessageSendTTS(m.ChannelID, text)
 			}
 		case "pumpit":
-			_, discErr = s.ChannelMessageSend(m.ChannelID, "https://cdn.discordapp.com/attachments/145942475805032449/471311185782898698/pumpItInTheClub.gif")
+			_, discErr = s.ChannelMessageSend(m.ChannelID,
+				"https://cdn.discordapp.com/attachments/145942475805032449/471311185782898698/pumpItInTheClub.gif")
 		case "status":
 			index := strings.Index(strings.ToLower(m.Content), "!status")
 			discErr = s.UpdateStatus(0, m.Content[index+len("!status"):])
+		case "selfdestruct":
+			fallthrough
+		case "kill":
+			fallthrough
+		case "stop":
+			fallthrough
+		case "quit":
+			fallthrough
+		case "die":
+			fallthrough
+		case "kys":
+			fallthrough
+		case "killmyself":
+			fallthrough
+		case "killyourself":
+			s.ChannelMessageSendTTS(
+				m.ChannelID,
+				fmt.Sprintf(" I'm sorry, %s. I'm afraid I can't do that.", m.Author.Username))
 		default:
 			err = errors.New(fmt.Sprintf("unsupported source %q", source))
 		}
