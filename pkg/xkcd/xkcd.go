@@ -3,7 +3,6 @@ package xkcd
 import (
 	"bytes"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"github.com/bwmarrin/discordgo"
 	"github.com/polarbirds/lunde/internal/meme"
@@ -41,7 +40,6 @@ func GetMeme(scheme string, argument string) (meme.Post, error) {
 	default:
 		return getNewestXKCD()
 	}
-	return meme.Post{}, errors.New("invalid scheme")
 }
 
 func getSearch(searchString string) (meme.Post, error) {
