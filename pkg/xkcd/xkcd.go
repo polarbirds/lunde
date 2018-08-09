@@ -3,6 +3,7 @@ package xkcd
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"github.com/bwmarrin/discordgo"
 	"github.com/polarbirds/lunde/internal/meme"
@@ -60,6 +61,10 @@ func getSearch(searchString string) (meme.Post, error) {
 	err = json.Unmarshal(bod, &n)
 	if err != nil {
 		return m, err
+	}
+
+	if len(n.Results) == 0 {
+		return m, errors.New("no results")
 	}
 
 	res := n.Results[0]
