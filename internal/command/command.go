@@ -33,7 +33,7 @@ func GetCommand(message string) (string, string, string, error) {
 
 	var argument string
 	if len(splits) >= 3 {
-		argument = splits[2]
+		argument = strings.Join(splits[2:], " ")
 	}
 	return source, scheme, argument, nil
 }

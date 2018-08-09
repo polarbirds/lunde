@@ -8,6 +8,7 @@ import (
 	"github.com/polarbirds/lunde/internal/command"
 	"github.com/polarbirds/lunde/internal/meme"
 	"github.com/polarbirds/lunde/pkg/reddit"
+	"github.com/polarbirds/lunde/pkg/xkcd"
 	log "github.com/sirupsen/logrus"
 	"os"
 	"os/signal"
@@ -57,7 +58,6 @@ func messageCreate(s *discordgo.Session, m *discordgo.MessageCreate) {
 		source, scheme, argument, err := command.GetCommand(m.Content)
 		if err != nil {
 			log.Error(err)
-			s.UpdateStatus(0, err.Error())
 			return
 		}
 
@@ -67,6 +67,14 @@ func messageCreate(s *discordgo.Session, m *discordgo.MessageCreate) {
 		case "reddit":
 			var msg meme.Post
 			msg, err = reddit.GetMeme(scheme, argument)
+			if msg.Embed.Title != "" {
+				_, discErr = s.ChannelMessageSendEmbed(m.ChannelID, &msg.Embed)
+			} else {
+				_, discErr = s.ChannelMessageSend(m.ChannelID, fmt.Sprintf("%s\n%s", msg.Title, msg.Message))
+			}
+		case "xkcd":
+			var msg meme.Post
+			msg, err = xkcd.GetMeme(scheme, argument)
 			if msg.Embed.Title != "" {
 				_, discErr = s.ChannelMessageSendEmbed(m.ChannelID, &msg.Embed)
 			} else {
