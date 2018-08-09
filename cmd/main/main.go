@@ -1,7 +1,6 @@
 package main
 
 import (
-	"errors"
 	"flag"
 	"fmt"
 	"github.com/bwmarrin/discordgo"
@@ -114,8 +113,6 @@ func messageCreate(s *discordgo.Session, m *discordgo.MessageCreate) {
 			s.ChannelMessageSendTTS(
 				m.ChannelID,
 				fmt.Sprintf(" I'm sorry, %s. I'm afraid I can't do that.", m.Author.Username))
-		default:
-			err = errors.New(fmt.Sprintf("unsupported source %q", source))
 		}
 
 		if err != nil {
