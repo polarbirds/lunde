@@ -10,6 +10,7 @@ import (
 
 	"github.com/bwmarrin/discordgo"
 	"github.com/google/uuid"
+	date "github.com/joyt/godate"
 	log "github.com/sirupsen/logrus"
 )
 
@@ -37,33 +38,41 @@ func (r *Reminder) CreateRemind(timeStr string, message string, channelID string
 }
 
 func (r *Reminder) createRemind(timeStr string, message string, channelID string) (t task, err error) {
-	timeSplits := strings.Split(timeStr, "+")
+	var timestamp time.Time
+	timestamp, err = date.ParseInLocation(strings.Replace(timeStr, "+", " ", -1), time.Local)
 
-	totalDuration := time.Duration(0)
+	if err != nil {
+		timeSplits := strings.Split(timeStr, "+")
 
-	for _, ts := range timeSplits {
-		numberStr, timeDenot := parseTimeStr(ts)
-		var i int
-		i, err = strconv.Atoi(numberStr)
-		if err != nil {
-			err = fmt.Errorf("integer in %s is not a valid integer", ts)
-			return
+		totalDuration := time.Duration(0)
+
+		for _, ts := range timeSplits {
+			numberStr, timeDenot := parseTimeStr(ts)
+			var i int
+			i, err = strconv.Atoi(numberStr)
+			if err != nil {
+				err = fmt.Errorf("integer in %s is not a valid integer", ts)
+				return
+			}
+
+			duratn := getDuration(timeDenot)
+			if duratn == -1 {
+				err = fmt.Errorf("duration denotation in %s is invalid", ts)
+				return
+			}
+
+			totalDuration += duratn * time.Duration(i)
 		}
 
-		duratn := getDuration(timeDenot)
-		if duratn == -1 {
-			err = fmt.Errorf("duration denotation in %s is invalid", ts)
-			return
-		}
-
-		totalDuration += duratn * time.Duration(i)
+		timestamp = time.Now().Add(totalDuration)
 	}
+
 	id, err := uuid.NewUUID()
 	if err != nil {
 		return
 	}
 
-	t = task{time.Now().Add(totalDuration), message, channelID, id.String()}
+	t = task{timestamp, message, channelID, id.String()}
 
 	r.queueRemind(t)
 	return
