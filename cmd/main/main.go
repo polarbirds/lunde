@@ -3,24 +3,26 @@ package main
 import (
 	"flag"
 	"fmt"
-	"github.com/bwmarrin/discordgo"
-	"github.com/polarbirds/lunde/internal/command"
-	"github.com/polarbirds/lunde/internal/meme"
-	"github.com/polarbirds/lunde/pkg/reddit"
-	"github.com/polarbirds/lunde/pkg/xkcd"
-	log "github.com/sirupsen/logrus"
 	"os"
 	"os/signal"
 	"strings"
 	"syscall"
+
+	"github.com/bwmarrin/discordgo"
+	"github.com/polarbirds/lunde/internal/command"
+	"github.com/polarbirds/lunde/internal/meme"
+	"github.com/polarbirds/lunde/pkg/reddit"
+	"github.com/polarbirds/lunde/pkg/remind"
+	"github.com/polarbirds/lunde/pkg/xkcd"
+	log "github.com/sirupsen/logrus"
 )
 
 var (
-	Token string
+	Token    string
+	reminder remind.Reminder
 )
 
 func init() {
-
 	flag.StringVar(&Token, "t", "", "Bot Token")
 	flag.Parse()
 }
@@ -40,6 +42,12 @@ func main() {
 		return
 	}
 
+	reminder = remind.Reminder{
+		DiscordSession: dg,
+	}
+
+	reminder.Start()
+
 	fmt.Println("Bot is now running.  Press CTRL-C to exit.")
 	sc := make(chan os.Signal, 1)
 	signal.Notify(sc, syscall.SIGINT, syscall.SIGTERM, os.Interrupt, os.Kill)
@@ -53,7 +61,7 @@ func messageCreate(s *discordgo.Session, m *discordgo.MessageCreate) {
 		return
 	}
 
-	if strings.Contains(m.Content, "!") {
+	if strings.HasPrefix(m.Content, "!") {
 		source, scheme, argument, err := command.GetCommand(m.Content)
 		if err != nil {
 			log.Error(err)
@@ -95,6 +103,8 @@ func messageCreate(s *discordgo.Session, m *discordgo.MessageCreate) {
 		case "status":
 			index := strings.Index(strings.ToLower(m.Content), "!status")
 			discErr = s.UpdateStatus(0, m.Content[index+len("!status"):])
+		case "remind":
+			err = reminder.CreateRemind(scheme, argument, m.ChannelID)
 		case "selfdestruct":
 			fallthrough
 		case "kill":
