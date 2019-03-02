@@ -14,6 +14,7 @@ import (
 	log "github.com/sirupsen/logrus"
 )
 
+// Reminder represents a Reminder process object
 type Reminder struct {
 	DiscordSession *discordgo.Session
 	tasks          []task
@@ -26,7 +27,10 @@ type task struct {
 	ID        string
 }
 
-func (r *Reminder) CreateRemind(timeStr string, message string, channelID string) error {
+// CreateRemindStrict creates a remind-task
+func (r *Reminder) CreateRemindStrict(
+	timeStr string, message string, channelID string,
+) error {
 	task, err := r.createRemind(timeStr, message, channelID)
 	if err != nil {
 		return err
@@ -37,7 +41,9 @@ func (r *Reminder) CreateRemind(timeStr string, message string, channelID string
 	return nil
 }
 
-func (r *Reminder) createRemind(timeStr string, message string, channelID string) (t task, err error) {
+func (r *Reminder) createRemind(
+	timeStr string, message string, channelID string,
+) (t task, err error) {
 	var timestamp time.Time
 	timestamp, err = date.ParseInLocation(strings.Replace(timeStr, "+", " ", -1), time.Local)
 
@@ -133,6 +139,7 @@ func (r *Reminder) queueRemind(t task) {
 	}(t)
 }
 
+// Start reads the reminds-file and queues all persisted reminds
 func (r *Reminder) Start() {
 	dat, err := ioutil.ReadFile("reminds.json")
 	if err != nil {
@@ -148,83 +155,25 @@ func (r *Reminder) Start() {
 
 func getDuration(denotation string) time.Duration {
 	switch denotation {
-	case "yr":
-		fallthrough
-	case "yrs":
-		fallthrough
-	case "year":
-		fallthrough
-	case "years":
-		fallthrough
-	case "y":
+	case "yr", "yrs", "year", "years", "y":
 		return time.Minute * 525600
 
-	case "month":
-		fallthrough
-	case "months":
-		fallthrough
-	case "mnth":
-		fallthrough
-	case "mnd":
-		fallthrough
-	case "måned":
-		fallthrough
-	case "måneder":
+	case "month", "months", "mnth", "mnd", "måned", "måneder":
 		return time.Minute * 43800
 
-	case "week":
-		fallthrough
-	case "weeks":
-		fallthrough
-	case "wk":
-		fallthrough
-	case "uke":
+	case "week", "weeks", "wk", "uke":
 		return time.Minute * 10080
 
-	case "day":
-		fallthrough
-	case "days":
-		fallthrough
-	case "dag":
-		fallthrough
-	case "dager":
+	case "day", "days", "dag", "dager":
 		return time.Minute * 1440
 
-	case "hour":
-		fallthrough
-	case "hr":
-		fallthrough
-	case "h":
-		fallthrough
-	case "time":
-		fallthrough
-	case "timer":
+	case "hour", "hr", "h", "time", "timer":
 		return time.Minute * 60
 
-	case "minute":
-		fallthrough
-	case "minutes":
-		fallthrough
-	case "minutt":
-		fallthrough
-	case "minutter":
-		fallthrough
-	case "min":
-		fallthrough
-	case "mins":
-		fallthrough
-	case "m":
-		fallthrough
-	case "":
+	case "minute", "minutes", "minutt", "minutter", "min", "mins", "m", "":
 		return time.Minute
 
-	case "seconds":
-		fallthrough
-	case "s":
-		fallthrough
-	case "sekund":
-		fallthrough
-	case "sekunder":
+	case "seconds", "s", "sekund", "sekunder":
 		return time.Second
 
 	case "ms":

@@ -6,9 +6,10 @@ import (
 )
 
 var (
-	notEnoughArgsErr = errors.New("not enough arguments")
+	errNotEnoughArgs = errors.New("not enough arguments")
 )
 
+// GetCommand parses a message string and returns it as parts of a command
 func GetCommand(message string) (string, string, string, error) {
 	index := strings.Index(message, "!")
 	if index == -1 {
@@ -22,7 +23,7 @@ func GetCommand(message string) (string, string, string, error) {
 	splits := strings.Split(command, " ")
 
 	if len(splits) < 1 {
-		return "", "", "", notEnoughArgsErr
+		return "", "", "", errNotEnoughArgs
 	}
 	source := splits[0]
 

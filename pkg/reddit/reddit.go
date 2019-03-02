@@ -4,12 +4,13 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"net/http"
+	"strings"
+
 	"github.com/bwmarrin/discordgo"
 	"github.com/google/go-querystring/query"
 	"github.com/jzelinskie/geddit"
 	"github.com/polarbirds/lunde/internal/meme"
-	"net/http"
-	"strings"
 )
 
 var (
@@ -21,19 +22,20 @@ var (
 
 func isEmbeddable(url string) bool {
 	for _, suffix := range imgSuffixes {
-		if strings.HasSuffix(url, "."+suffix) {
+		if strings.HasSuffix(strings.ToLower(url), "."+suffix) {
 			return true
 		}
 	}
 	return false
 }
 
+// GetMeme fetches a post from reddit from the given parameters
 func GetMeme(scheme string, argument string) (meme.Post, error) {
 	msg := meme.Post{}
 	var resp *geddit.Submission
 	var err error
 
-	resp, err = GetPost(scheme, argument)
+	resp, err = getPost(scheme, argument)
 
 	if err != nil {
 		return msg, err
@@ -59,7 +61,7 @@ func GetMeme(scheme string, argument string) (meme.Post, error) {
 	return msg, nil
 }
 
-func GetPost(scheme string, subreddit string) (*geddit.Submission, error) {
+func getPost(scheme string, subreddit string) (*geddit.Submission, error) {
 	// Set listing options
 	subOpts := geddit.ListingOptions{
 		Limit: 1,
@@ -86,21 +88,23 @@ func GetPost(scheme string, subreddit string) (*geddit.Submission, error) {
 	return submissions[0], nil
 }
 
-// ripped and modified from github.com/jzelinskie/geddit to support sorting random
-func subredditSubmissions(subreddit string, sort string, params geddit.ListingOptions) ([]*geddit.Submission, error) {
+// ripped from github.com/jzelinskie/geddit, but now supports all of reddit's sorting-algorithms
+func subredditSubmissions(
+	subreddit string, sort string, params geddit.ListingOptions,
+) ([]*geddit.Submission, error) {
 	v, err := query.Values(params)
 	if err != nil {
 		return nil, err
 	}
 
-	baseUrl := "https://www.reddit.com"
+	baseURL := "https://www.reddit.com"
 
 	// If subbreddit given, add to URL
 	if subreddit != "" {
-		baseUrl += "/r/" + subreddit
+		baseURL += "/r/" + subreddit
 	}
 
-	redditURL := fmt.Sprintf(baseUrl+"/%s.json?%s", sort, v.Encode())
+	redditURL := fmt.Sprintf(baseURL+"/%s.json?%s", sort, v.Encode())
 
 	client := &http.Client{}
 	req, err := http.NewRequest("GET", redditURL, nil)
@@ -110,10 +114,6 @@ func subredditSubmissions(subreddit string, sort string, params geddit.ListingOp
 	}
 
 	resp, err := client.Do(req)
-
-	if err != nil {
-		return nil, err
-	}
 
 	if err != nil {
 		return nil, err

@@ -5,14 +5,16 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"github.com/bwmarrin/discordgo"
-	"github.com/polarbirds/lunde/internal/meme"
 	"io/ioutil"
 	"math/rand"
 	"net/http"
 	"strings"
+
+	"github.com/bwmarrin/discordgo"
+	"github.com/polarbirds/lunde/internal/meme"
 )
 
+// XKCD defines an xkcd post
 type XKCD struct {
 	Img   string
 	Title string
@@ -20,6 +22,7 @@ type XKCD struct {
 	Num   int
 }
 
+// SXImg defines an xkcd search image
 type SXImg struct {
 	Number    int
 	Title     string
@@ -27,11 +30,13 @@ type SXImg struct {
 	Image     string
 }
 
+// SearchXKCD defines an xkcd search
 type SearchXKCD struct {
 	Success bool
 	Results []SXImg
 }
 
+// GetMeme fetches a post from xkcd
 func GetMeme(scheme string, argument string) (meme.Post, error) {
 	switch scheme {
 	case "random":
