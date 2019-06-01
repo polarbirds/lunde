@@ -26,11 +26,13 @@ type execution struct {
 }
 
 var (
-	reminder remind.Reminder
-	lastExec execution
+	reminder    remind.Reminder
+	lastExec    execution
+	lastMessage map[string]*discordgo.Message
 )
 
 func main() {
+	lastMessage = make(map[string]*discordgo.Message)
 	var token string
 	flag.StringVar(&token, "t", "", "Bot Token")
 	flag.Parse()
@@ -70,6 +72,7 @@ func messageCreate(s *discordgo.Session, m *discordgo.MessageCreate) {
 	}
 
 	if !strings.HasPrefix(m.Content, "!") {
+		lastMessage[m.ChannelID] = m.Message
 		return
 	}
 
@@ -136,7 +139,15 @@ func messageCreate(s *discordgo.Session, m *discordgo.MessageCreate) {
 			s.ChannelMessageDelete(m.ChannelID, m.Message.ID)
 		}
 	case "text":
-		reply, discErr = text.Generate(s, m, scheme, argument)
+		lm, ok := lastMessage[m.ChannelID]
+		lmc := ""
+		if ok {
+			lmc = lm.Content
+		}
+		reply, err = text.Generate(s, m, scheme, argument, lmc)
+		if err == nil {
+			discErr = s.ChannelMessageDelete(m.ChannelID, m.ID)
+		}
 	}
 
 	lastExec = execution{}

@@ -2,6 +2,7 @@ package text
 
 import (
 	"bytes"
+	"errors"
 	"fmt"
 	"hash/fnv"
 	"math/rand"
@@ -17,12 +18,19 @@ func Generate(
 	m *discordgo.MessageCreate,
 	scheme string,
 	argument string,
+	lastMessage string,
 ) (*discordgo.Message, error) {
 	if !strings.HasPrefix(scheme, "-") {
 		scheme = "-" + scheme
 	}
 	types, content := findTypes(strings.Join([]string{scheme, argument}, " "))
-	log.Info(types, ": ", content)
+	if content == "" {
+		content = lastMessage
+	}
+	log.Infof("%v: %q", types, content)
+	if content == "" {
+		return nil, errors.New("empty message")
+	}
 
 	for _, v := range types {
 		content = convert(content, v)
@@ -32,18 +40,19 @@ func Generate(
 }
 
 func findTypes(msg string) ([]string, string) {
-	remainingMessage := msg
 	types := []string{}
 	words := strings.Split(msg, " ")
+	remainingMessage := words
 	for i, v := range words {
 		if strings.HasPrefix(v, "-") {
 			types = append(types, v)
+			remainingMessage = words[i+1:]
 		} else {
-			remainingMessage = strings.Join(words[i:], " ")
+			remainingMessage = words[i:]
 			break
 		}
 	}
-	return types, remainingMessage
+	return types, strings.Join(remainingMessage, " ")
 }
 
 func convert(content string, algo string) string {
@@ -89,9 +98,17 @@ func zalgoPlz(content string) string {
 
 func spungePlz(content string) string {
 	content = strings.ToLower(content)
+	lastCharConverted := false
 	for i, c := range content {
-		if rand.Intn(2) == 0 {
+		setSize := 2
+		if lastCharConverted {
+			setSize = 3
+		}
+		if rand.Intn(setSize) == 0 {
 			content = content[:i] + strings.ToUpper(string(c)) + content[i+1:]
+			lastCharConverted = true
+		} else {
+			lastCharConverted = false
 		}
 	}
 	return content
