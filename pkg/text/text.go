@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"math/rand"
+	"regexp"
 	"strings"
 
 	"github.com/bwmarrin/discordgo"
@@ -64,6 +65,8 @@ func convert(content string, algo string) string {
 		return zalgoPlz(content)
 	case "spunge":
 		return spungePlz(content)
+	case "chirese":
+		return chiresePlz(content)
 	default:
 		return content
 	}
@@ -103,5 +106,23 @@ func spungePlz(content string) string {
 			lastCharConverted = false
 		}
 	}
+	return content
+}
+
+var chiresePattern = regexp.MustCompile("asd")
+
+const tmp = "||tmp||"
+
+func swap(src string, c1 string, c2 string) string {
+	src = strings.Replace(src, c1, tmp, -1)
+	src = strings.Replace(src, c2, c1, -1)
+	src = strings.Replace(src, tmp, c2, -1)
+
+	return src
+}
+
+func chiresePlz(content string) string {
+	content = swap(content, "l", "r")
+	content = swap(content, "L", "R")
 	return content
 }
