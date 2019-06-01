@@ -161,6 +161,8 @@ func messageCreate(s *discordgo.Session, m *discordgo.MessageCreate) {
 	if err != nil {
 		log.Error(err)
 		s.UpdateStatus(0, err.Error())
+	} else {
+		s.UpdateStatus(0, "")
 	}
 
 	if discErr != nil {
