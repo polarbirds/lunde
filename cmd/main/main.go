@@ -13,6 +13,7 @@ import (
 	"github.com/polarbirds/lunde/internal/meme"
 	"github.com/polarbirds/lunde/pkg/reddit"
 	"github.com/polarbirds/lunde/pkg/remind"
+	"github.com/polarbirds/lunde/pkg/text"
 	"github.com/polarbirds/lunde/pkg/xkcd"
 	log "github.com/sirupsen/logrus"
 )
@@ -134,6 +135,8 @@ func messageCreate(s *discordgo.Session, m *discordgo.MessageCreate) {
 			}
 			s.ChannelMessageDelete(m.ChannelID, m.Message.ID)
 		}
+	case "text":
+		reply, discErr = text.Generate(s, m, scheme, argument)
 	}
 
 	lastExec = execution{}
@@ -143,7 +146,6 @@ func messageCreate(s *discordgo.Session, m *discordgo.MessageCreate) {
 	if reply != nil {
 		lastExec.replyID = reply.ID
 	}
-	log.Info("command lastExec: ", lastExec)
 
 	if err != nil {
 		log.Error(err)
