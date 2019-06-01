@@ -41,23 +41,28 @@ func GetMeme(scheme string, argument string) (meme.Post, error) {
 		return msg, err
 	}
 
-	msg.Title = resp.Title
-	if resp.Selftext != "" {
-		msg.Message = resp.Selftext
-		if len(msg.Message) > 1999 {
-			msg.Message = msg.Message[:1999]
-		}
-	} else {
-		msg.Message = resp.URL
+	msg.Embed = discordgo.MessageEmbed{
+		Title:       resp.Title,
+		Description: resp.Selftext,
+		Author: &discordgo.MessageEmbedAuthor{
+			Name: resp.Author,
+		},
+		Footer: &discordgo.MessageEmbedFooter{
+			Text: fmt.Sprintf("⬆%v / ⬇%v", resp.Ups, resp.Downs),
+		},
+	}
+
+	if len(msg.Embed.Description) > 1999 {
+		msg.Embed.Description = msg.Embed.Description[:1999]
 	}
 
 	if isEmbeddable(resp.URL) {
 		a := discordgo.MessageEmbedImage{URL: resp.URL}
-		msg.Embed = discordgo.MessageEmbed{
-			Title: resp.Title,
-			Image: &a,
-		}
+		msg.Embed.Image = &a
+	} else if resp.Selftext == "" {
+		msg.Embed.Description = resp.URL
 	}
+
 	return msg, nil
 }
 

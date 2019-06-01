@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
-	"hash/fnv"
 	"math/rand"
 	"strings"
 
@@ -60,7 +59,6 @@ func convert(content string, algo string) string {
 		algo = algo[1:]
 	}
 
-	setRandSeed(content)
 	switch algo {
 	case "zalgo":
 		return zalgoPlz(content)
@@ -69,12 +67,6 @@ func convert(content string, algo string) string {
 	default:
 		return content
 	}
-}
-
-func setRandSeed(content string) {
-	h := fnv.New64a()
-	h.Write([]byte(content))
-	rand.Seed(int64(h.Sum64()))
 }
 
 func zalgoPlz(content string) string {
