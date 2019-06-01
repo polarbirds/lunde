@@ -114,9 +114,9 @@ var chiresePattern = regexp.MustCompile("asd")
 const tmp = "||tmp||"
 
 func swap(src string, c1 string, c2 string) string {
-	src = strings.Replace(src, c1, tmp, -1)
-	src = strings.Replace(src, c2, c1, -1)
-	src = strings.Replace(src, tmp, c2, -1)
+	src = strings.Replace(src, c1, tmp, -1) // c1 -> tmp
+	src = strings.Replace(src, c2, c1, -1)  // c2 -> c1
+	src = strings.Replace(src, tmp, c2, -1) // tmp -> c2
 
 	return src
 }
