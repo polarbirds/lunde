@@ -3,5 +3,9 @@ vendor/
 
 # Gox built files
 lunde_*
-run.bat
+
 reminds.json
+
+# windows stuff go away
+run.bat
+build-for-linux.bat
