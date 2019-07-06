@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
+	"os"
 	"strconv"
 	"strings"
 	"time"
@@ -141,6 +142,11 @@ func (r *Reminder) queueRemind(t task) {
 
 // Start reads the reminds-file and queues all persisted reminds
 func (r *Reminder) Start() {
+	if _, err := os.Stat("reminds.json"); os.IsNotExist(err) {
+		log.Info("file reminds.json not found, starting anew!")
+		return
+	}
+
 	dat, err := ioutil.ReadFile("reminds.json")
 	if err != nil {
 		log.Fatal(err)
