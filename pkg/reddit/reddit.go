@@ -6,10 +6,11 @@ import (
 	"fmt"
 	"net/http"
 	"strings"
+	"time"
 
-	"github.com/bwmarrin/discordgo"
 	"github.com/google/go-querystring/query"
 	"github.com/jzelinskie/geddit"
+	"github.com/polarbirds/discordgo"
 	"github.com/polarbirds/lunde/internal/meme"
 )
 
@@ -17,8 +18,14 @@ var (
 	imgSuffixes = []string{
 		"jpg",
 		"png",
+		"gif",
 	}
 )
+
+func utcToTimeStamp(utc int64) string {
+	tm := time.Unix(utc, 0)
+	return tm.Format("02.01.06")
+}
 
 func isEmbeddable(url string) bool {
 	for _, suffix := range imgSuffixes {
@@ -27,6 +34,29 @@ func isEmbeddable(url string) bool {
 		}
 	}
 	return false
+}
+
+func embedMessage(resp *geddit.Submission) discordgo.MessageEmbed {
+	embed := discordgo.MessageEmbed{
+		Title:       resp.Title,
+		Description: resp.Selftext,
+		Author: &discordgo.MessageEmbedAuthor{
+			Name: resp.Author,
+		},
+		Timestamp: time.Unix(int64(resp.DateCreated), 0).Format(time.RFC3339),
+		Footer: &discordgo.MessageEmbedFooter{
+			Text: fmt.Sprintf("⬆%v / ⬇%v", resp.Ups, resp.Downs),
+		},
+	}
+
+	if len(embed.Description) > 1999 {
+		embed.Description = embed.Description[:1999]
+	}
+
+	if !strings.HasSuffix(resp.URL, resp.Permalink) {
+		embed.Image = &discordgo.MessageEmbedImage{URL: resp.URL}
+	}
+	return embed
 }
 
 // GetMeme fetches a post from reddit from the given parameters
@@ -41,26 +71,17 @@ func GetMeme(scheme string, argument string) (meme.Post, error) {
 		return msg, err
 	}
 
-	msg.Embed = discordgo.MessageEmbed{
-		Title:       resp.Title,
-		Description: resp.Selftext,
-		Author: &discordgo.MessageEmbedAuthor{
-			Name: resp.Author,
-		},
-		Footer: &discordgo.MessageEmbedFooter{
-			Text: fmt.Sprintf("⬆%v / ⬇%v", resp.Ups, resp.Downs),
-		},
-	}
-
-	if len(msg.Embed.Description) > 1999 {
-		msg.Embed.Description = msg.Embed.Description[:1999]
-	}
-
-	if isEmbeddable(resp.URL) {
-		a := discordgo.MessageEmbedImage{URL: resp.URL}
-		msg.Embed.Image = &a
-	} else if resp.Selftext == "" {
-		msg.Embed.Description = resp.URL
+	if strings.HasSuffix(resp.URL, resp.Permalink) || isEmbeddable(resp.URL) {
+		msg.Embed = embedMessage(resp)
+	} else {
+		msg.Title = fmt.Sprintf("*%s on %s*:\n%s", resp.Author, utcToTimeStamp(int64(resp.DateCreated)), resp.Title)
+		var messageBody string
+		if resp.Selftext != "" {
+			messageBody = fmt.Sprintf("%s\n%s", resp.Selftext, resp.URL)
+		} else {
+			messageBody = resp.URL
+		}
+		msg.Message = fmt.Sprintf("%s\n⬆%v / ⬇%v", messageBody, resp.Ups, resp.Downs)
 	}
 
 	return msg, nil
@@ -87,7 +108,7 @@ func getPost(scheme string, subreddit string) (*geddit.Submission, error) {
 	}
 
 	if len(submissions) < 1 {
-		return nil, errors.New("reddit returned no posts")
+		return nil, fmt.Errorf("reddit returned no posts for subreddit %q", subreddit)
 	}
 
 	return submissions[0], nil

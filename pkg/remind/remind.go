@@ -9,7 +9,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/bwmarrin/discordgo"
+	"github.com/polarbirds/discordgo"
 	"github.com/google/uuid"
 	date "github.com/joyt/godate"
 	log "github.com/sirupsen/logrus"

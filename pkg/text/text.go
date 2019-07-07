@@ -8,7 +8,7 @@ import (
 	"regexp"
 	"strings"
 
-	"github.com/bwmarrin/discordgo"
+	"github.com/polarbirds/discordgo"
 	"github.com/kortschak/zalgo"
 	log "github.com/sirupsen/logrus"
 )

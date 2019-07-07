@@ -8,7 +8,7 @@ import (
 	"strings"
 	"syscall"
 
-	"github.com/bwmarrin/discordgo"
+	"github.com/polarbirds/discordgo"
 	"github.com/polarbirds/lunde/internal/command"
 	"github.com/polarbirds/lunde/internal/meme"
 	"github.com/polarbirds/lunde/pkg/reddit"
@@ -27,29 +27,43 @@ type execution struct {
 
 var (
 	reminder    remind.Reminder
-	lastExec    execution
 	lastMessage map[string]*discordgo.Message
 )
 
+type lundeServer struct {
+	sess      *discordgo.Session
+	lastExecs map[string]execution
+}
+
 func main() {
+	srv := lundeServer{
+		lastExecs: make(map[string]execution),
+	}
+
 	lastMessage = make(map[string]*discordgo.Message)
 	var token string
 	flag.StringVar(&token, "t", "", "Bot Token")
 	flag.Parse()
 
+	if token == "" {
+		log.Fatal("No token given!")
+	}
+
 	dg, err := discordgo.New("Bot " + token)
 	if err != nil {
-		fmt.Println("error creating Discord session,", err)
+		log.Fatal("error creating Discord session, ", err)
 		return
 	}
 
-	dg.AddHandler(messageCreate)
+	dg.AddHandler(srv.messageCreate)
 
 	err = dg.Open()
 	if err != nil {
-		fmt.Println("error opening connection,", err)
+		log.Fatal("error opening connection, ", err)
 		return
 	}
+
+	srv.sess = dg
 
 	reminder = remind.Reminder{
 		DiscordSession: dg,
@@ -57,7 +71,7 @@ func main() {
 
 	reminder.Start()
 
-	fmt.Println("Bot is now running.  Press CTRL-C to exit.")
+	log.Info("Bot is now running.  Press CTRL-C to exit.")
 	sc := make(chan os.Signal, 1)
 	signal.Notify(sc, syscall.SIGINT, syscall.SIGTERM, os.Interrupt, os.Kill)
 	<-sc
@@ -66,7 +80,7 @@ func main() {
 }
 
 // revive:disable-next-line:cyclomatic
-func messageCreate(s *discordgo.Session, m *discordgo.MessageCreate) {
+func (srv *lundeServer) messageCreate(s *discordgo.Session, m *discordgo.MessageCreate) {
 	if m.Author.ID == s.State.User.ID {
 		return
 	}
@@ -88,6 +102,9 @@ func messageCreate(s *discordgo.Session, m *discordgo.MessageCreate) {
 	case "reddit":
 		var msg meme.Post
 		msg, err = reddit.GetMeme(scheme, argument)
+		if err != nil {
+			break
+		}
 		if msg.Embed.Title != "" {
 			reply, discErr = s.ChannelMessageSendEmbed(m.ChannelID, &msg.Embed)
 		} else {
@@ -127,6 +144,10 @@ func messageCreate(s *discordgo.Session, m *discordgo.MessageCreate) {
 			m.ChannelID,
 			fmt.Sprintf(" I'm sorry, %s. I'm afraid I can't do that.", m.Author.Username))
 	case "undo":
+		lastExec, exists := srv.lastExecs[m.ChannelID]
+		if !exists {
+			break
+		}
 		log.Info("undo lastExec: ", lastExec)
 		if m.Author.ID == lastExec.messageAuthorID &&
 			m.ChannelID == lastExec.messageChannelID {
@@ -150,22 +171,43 @@ func messageCreate(s *discordgo.Session, m *discordgo.MessageCreate) {
 		}
 	}
 
-	lastExec = execution{}
-	lastExec.messageID = m.Message.ID
-	lastExec.messageChannelID = m.Message.ChannelID
-	lastExec.messageAuthorID = m.Message.Author.ID
+	lastExec := execution{
+		messageID:        m.Message.ID,
+		messageChannelID: m.Message.ChannelID,
+		messageAuthorID:  m.Message.Author.ID,
+	}
+
 	if reply != nil {
 		lastExec.replyID = reply.ID
 	}
 
-	if err != nil {
-		log.Error(err)
-		s.UpdateStatus(0, err.Error())
-	} else {
-		s.UpdateStatus(0, "")
+	srv.lastExecs[m.ChannelID] = lastExec
+
+	srv.reportErrorIfExists(err, m)
+	srv.reportErrorIfExists(discErr, m)
+}
+
+func (srv *lundeServer) reportErrorIfExists(repErr error, m *discordgo.MessageCreate) {
+	if repErr == nil {
+		return
 	}
 
-	if discErr != nil {
-		log.Error(discErr)
+	log.Info(repErr)
+	_, err := m.Author.SendMessage(
+		srv.sess,
+		fmt.Sprintf("Command was: %s\nError occurred: %s", m.Content, repErr.Error()),
+		nil, nil,
+	)
+	if err != nil {
+		log.Error(err)
 	}
 }
+
+// func dm(userID string, message string) error {
+
+// }
+
+// func uptime(s *discordgo.Session, m *discordgo.MessageCreate) string {
+// 	m.Author.
+
+// }
