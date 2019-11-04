@@ -82,7 +82,6 @@ func main() {
 
 // revive:disable-next-line:cyclomatic
 func (srv *lundeServer) messageCreate(s *discordgo.Session, m *discordgo.MessageCreate) {
-	log.Info(m.Content)
 	if m.Author.ID == s.State.User.ID {
 		return
 	}
@@ -204,6 +203,10 @@ func (srv *lundeServer) reportErrorIfExists(
 ) {
 	if repErr == nil {
 		return
+	}
+
+	if err2 := s.MessageReactionAdd(m.ChannelID, m.ID, "❌"); err2 != nil {
+		log.Error(err2)
 	}
 
 	log.Info(repErr)
