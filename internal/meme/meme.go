@@ -1,6 +1,6 @@
 package meme
 
-import "github.com/polarbirds/discordgo"
+import "github.com/bwmarrin/discordgo"
 
 // Post represents a post from an internet page
 type Post struct {

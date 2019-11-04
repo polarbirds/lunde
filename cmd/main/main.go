@@ -1,6 +1,7 @@
 package main
 
 import (
+	"errors"
 	"flag"
 	"fmt"
 	"os"
@@ -8,7 +9,7 @@ import (
 	"strings"
 	"syscall"
 
-	"github.com/polarbirds/discordgo"
+	"github.com/bwmarrin/discordgo"
 	"github.com/polarbirds/lunde/internal/command"
 	"github.com/polarbirds/lunde/internal/meme"
 	"github.com/polarbirds/lunde/pkg/reddit"
@@ -81,6 +82,7 @@ func main() {
 
 // revive:disable-next-line:cyclomatic
 func (srv *lundeServer) messageCreate(s *discordgo.Session, m *discordgo.MessageCreate) {
+	log.Info(m.Content)
 	if m.Author.ID == s.State.User.ID {
 		return
 	}
@@ -139,6 +141,12 @@ func (srv *lundeServer) messageCreate(s *discordgo.Session, m *discordgo.Message
 		discErr = s.UpdateStatus(0, m.Content[index+len("!status"):])
 	case "remind":
 		err = reminder.CreateRemindStrict(scheme, argument, m.ChannelID)
+		if err == nil {
+			if err2 := s.MessageReactionAdd(m.ChannelID, m.ID, "✅"); err2 != nil {
+				log.Error(err2)
+				err = errors.New("remind added, but failed to add reaction. Contact @servermonkey")
+			}
+		}
 	case "selfdestruct", "kys", "die", "kill", "stop", "quit", "killmyself", "killyourself":
 		reply, discErr = s.ChannelMessageSendTTS(
 			m.ChannelID,
@@ -169,6 +177,8 @@ func (srv *lundeServer) messageCreate(s *discordgo.Session, m *discordgo.Message
 		if err == nil {
 			discErr = s.ChannelMessageDelete(m.ChannelID, m.ID)
 		}
+	case "at":
+
 	}
 
 	lastExec := execution{
@@ -183,20 +193,30 @@ func (srv *lundeServer) messageCreate(s *discordgo.Session, m *discordgo.Message
 
 	srv.lastExecs[m.ChannelID] = lastExec
 
-	srv.reportErrorIfExists(err, m)
-	srv.reportErrorIfExists(discErr, m)
+	srv.reportErrorIfExists(err, m, s)
+	srv.reportErrorIfExists(discErr, m, s)
 }
 
-func (srv *lundeServer) reportErrorIfExists(repErr error, m *discordgo.MessageCreate) {
+func (srv *lundeServer) reportErrorIfExists(
+	repErr error,
+	m *discordgo.MessageCreate,
+	s *discordgo.Session,
+) {
 	if repErr == nil {
 		return
 	}
 
 	log.Info(repErr)
-	_, err := m.Author.SendMessage(
-		srv.sess,
+	dmChannel, err := s.UserChannelCreate(m.Author.ID)
+	if err != nil {
+		log.Error(err)
+		return
+	}
+
+	log.Info("sending text ", repErr.Error())
+	_, err = s.ChannelMessageSend(
+		dmChannel.ID,
 		fmt.Sprintf("Command was: %s\nError occurred: %s", m.Content, repErr.Error()),
-		nil, nil,
 	)
 	if err != nil {
 		log.Error(err)

@@ -9,3 +9,6 @@ reminds.json
 # windows stuff go away
 run.bat
 build-for-linux.bat
+
+token.txt
+bin/

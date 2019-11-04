@@ -10,7 +10,7 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/polarbirds/discordgo"
+	"github.com/bwmarrin/discordgo"
 	"github.com/polarbirds/lunde/internal/meme"
 )
 

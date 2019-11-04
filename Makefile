@@ -1,3 +1,5 @@
+TOKEN := $(shell cat token.txt)
+
 build-dir:
 	mkdir -p bin
 
@@ -5,7 +7,7 @@ build: build-dir
 	go build -o bin/lunde cmd/main/main.go
 
 run: # make ARGS="-arg1 val1 -arg2 -arg3" run
-	./bin/lunde ${ARGS}
+	./bin/lunde -t ${TOKEN} ${ARGS}
 
 clean:
 	rm -r bin

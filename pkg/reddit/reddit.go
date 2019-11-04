@@ -10,7 +10,7 @@ import (
 
 	"github.com/google/go-querystring/query"
 	"github.com/jzelinskie/geddit"
-	"github.com/polarbirds/discordgo"
+	"github.com/bwmarrin/discordgo"
 	"github.com/polarbirds/lunde/internal/meme"
 )
 
