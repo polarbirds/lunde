@@ -73,7 +73,13 @@ func GetMeme(scheme string, argument string) (msg meme.Post, err error) {
 			return msg, err
 		}
 	}
+	// make 0-indexed
 	nrPost--
+
+	// fy tr0n
+	if nrPost < 0 {
+		nrPost = 0
+	}
 
 	resp, err = getPost(scheme, subreddit, nrPost)
 
