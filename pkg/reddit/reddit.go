@@ -5,12 +5,13 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"strconv"
 	"strings"
 	"time"
 
+	"github.com/bwmarrin/discordgo"
 	"github.com/google/go-querystring/query"
 	"github.com/jzelinskie/geddit"
-	"github.com/bwmarrin/discordgo"
 	"github.com/polarbirds/lunde/internal/meme"
 )
 
@@ -60,12 +61,21 @@ func embedMessage(resp *geddit.Submission) discordgo.MessageEmbed {
 }
 
 // GetMeme fetches a post from reddit from the given parameters
-func GetMeme(scheme string, argument string) (meme.Post, error) {
-	msg := meme.Post{}
+func GetMeme(scheme string, argument string) (msg meme.Post, err error) {
 	var resp *geddit.Submission
-	var err error
+	var subreddit string
+	nrPost := 1
+	splits := strings.Split(argument, " ")
+	subreddit = splits[0]
+	if len(splits) > 1 {
+		nrPost, err = strconv.Atoi(splits[1])
+		if err != nil {
+			return msg, err
+		}
+	}
+	nrPost--
 
-	resp, err = getPost(scheme, argument)
+	resp, err = getPost(scheme, subreddit, nrPost)
 
 	if err != nil {
 		return msg, err
@@ -87,20 +97,20 @@ func GetMeme(scheme string, argument string) (meme.Post, error) {
 	return msg, nil
 }
 
-func getPost(scheme string, subreddit string) (*geddit.Submission, error) {
+func getPost(scheme string, subreddit string, nrPost int) (*geddit.Submission, error) {
 	// Set listing options
 	subOpts := geddit.ListingOptions{
-		Limit: 1,
-		Count: 1,
+		Limit: nrPost + 1,
+		Count: nrPost + 1,
 	}
 
 	var submissions []*geddit.Submission
 	var err error
 
 	if subreddit == "" {
-		submissions, err = subredditSubmissions("", scheme, subOpts)
+		submissions, err = subredditSubmissions("", nrPost, scheme, subOpts)
 	} else {
-		submissions, err = subredditSubmissions(subreddit, scheme, subOpts)
+		submissions, err = subredditSubmissions(subreddit, nrPost, scheme, subOpts)
 	}
 
 	if err != nil {
@@ -111,12 +121,18 @@ func getPost(scheme string, subreddit string) (*geddit.Submission, error) {
 		return nil, fmt.Errorf("reddit returned no posts for subreddit %q", subreddit)
 	}
 
-	return submissions[0], nil
+	if len(submissions)-1 < nrPost {
+		return nil, fmt.Errorf("reddit did not return enough posts. "+
+			"Reddit returned %d post(s) for subreddit %q, user requested post #%d",
+			len(submissions), subreddit, nrPost)
+	}
+
+	return submissions[nrPost], nil
 }
 
 // ripped from github.com/jzelinskie/geddit, but now supports all of reddit's sorting-algorithms
 func subredditSubmissions(
-	subreddit string, sort string, params geddit.ListingOptions,
+	subreddit string, nrPost int, sort string, params geddit.ListingOptions,
 ) ([]*geddit.Submission, error) {
 	v, err := query.Values(params)
 	if err != nil {
