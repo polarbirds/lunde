@@ -44,6 +44,7 @@ func embedMessage(resp *geddit.Submission) discordgo.MessageEmbed {
 		Author: &discordgo.MessageEmbedAuthor{
 			Name: resp.Author,
 		},
+		URL:       fmt.Sprintf("https://reddit.com%s", resp.Permalink),
 		Timestamp: time.Unix(int64(resp.DateCreated), 0).Format(time.RFC3339),
 		Footer: &discordgo.MessageEmbedFooter{
 			Text: fmt.Sprintf("⬆%v / ⬇%v", resp.Ups, resp.Downs),
@@ -90,7 +91,7 @@ func GetMeme(scheme string, argument string) (msg meme.Post, err error) {
 	if strings.HasSuffix(resp.URL, resp.Permalink) || isEmbeddable(resp.URL) {
 		msg.Embed = embedMessage(resp)
 	} else {
-		msg.Title = fmt.Sprintf("*%s on %s*:\n%s", resp.Author, utcToTimeStamp(int64(resp.DateCreated)), resp.Title)
+		msg.Title = fmt.Sprintf("*%s on %s*: <https://reddit.com%s>\n%s", resp.Author, utcToTimeStamp(int64(resp.DateCreated)), resp.Permalink, resp.Title)
 		var messageBody string
 		if resp.Selftext != "" {
 			messageBody = fmt.Sprintf("%s\n%s", resp.Selftext, resp.URL)
