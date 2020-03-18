@@ -48,27 +48,20 @@ func (r *Reminder) createRemind(
 	var timestamp time.Time
 	timestamp, err = date.ParseInLocation(strings.Replace(timeStr, "+", " ", -1), time.Local)
 
+	// if we failed parsing the time-string as a timedate, we attempt to
 	if err != nil {
 		timeSplits := strings.Split(timeStr, "+")
 
 		totalDuration := time.Duration(0)
 
 		for _, ts := range timeSplits {
-			numberStr, timeDenot := parseTimeStr(ts)
-			var i int
-			i, err = strconv.Atoi(numberStr)
-			if err != nil {
-				err = fmt.Errorf("integer in %s is not a valid integer", ts)
+			duratn, parseErr := parseStringToDuration(ts)
+			if parseErr != nil {
+				err = fmt.Errorf("error occurred parsing time-string: %v", parseErr)
 				return
 			}
 
-			duratn := getDuration(timeDenot)
-			if duratn == -1 {
-				err = fmt.Errorf("duration denotation in %s is invalid", ts)
-				return
-			}
-
-			totalDuration += duratn * time.Duration(i)
+			totalDuration += duratn
 		}
 
 		timestamp = time.Now().Add(totalDuration)
@@ -85,19 +78,35 @@ func (r *Reminder) createRemind(
 	return
 }
 
-func parseTimeStr(s string) (numbers string, letters string) {
+// parseStringToDuration takes a string containing a number with denotation
+// (e. g. 14m, 17y, 1month or 8hr) and returns it as a time.Duration
+func parseStringToDuration(s string) (time.Duration, error) {
 	var l, n []rune
+	// iterate over string and populate l with letters, n with numbers
 	for _, r := range s {
 		switch {
-		case r >= 'A' && r <= 'Z':
-			l = append(l, r)
-		case r >= 'a' && r <= 'z':
+		case r >= 'A' && r <= 'Z', r >= 'a' && r <= 'z':
 			l = append(l, r)
 		case r >= '0' && r <= '9':
 			n = append(n, r)
 		}
 	}
-	return string(n), string(l)
+
+	num, err := strconv.Atoi(string(n))
+	if err != nil {
+		return 0, err
+	}
+
+	if num < 1 {
+		return 0, fmt.Errorf("number was smaller than 1")
+	}
+
+	denot := denotationAsDuration(string(l))
+	if denot == -1 {
+		return 0, fmt.Errorf("error occurred parsing denotation %q", string(l))
+	}
+
+	return denot * time.Duration(num), nil
 }
 
 func (r *Reminder) saveTasks() {
@@ -159,7 +168,7 @@ func (r *Reminder) Start() {
 	}
 }
 
-func getDuration(denotation string) time.Duration {
+func denotationAsDuration(denotation string) time.Duration {
 	switch denotation {
 	case "yr", "yrs", "year", "years", "y":
 		return time.Minute * 525600
@@ -167,19 +176,19 @@ func getDuration(denotation string) time.Duration {
 	case "month", "months", "mnth", "mnd", "måned", "måneder":
 		return time.Minute * 43800
 
-	case "week", "weeks", "wk", "uke":
+	case "w", "week", "weeks", "wk", "uke", "uker":
 		return time.Minute * 10080
 
-	case "day", "days", "dag", "dager":
+	case "d", "day", "days", "dag", "dager":
 		return time.Minute * 1440
 
-	case "hour", "hr", "h", "time", "timer":
-		return time.Minute * 60
+	case "h", "hour", "hr", "time", "timer":
+		return time.Hour
 
-	case "minute", "minutes", "minutt", "minutter", "min", "mins", "m", "":
+	case "m", "minute", "minutes", "minutt", "minutter", "min", "mins", "":
 		return time.Minute
 
-	case "seconds", "s", "sekund", "sekunder":
+	case "s", "seconds", "sekund", "sekunder":
 		return time.Second
 
 	case "ms":
