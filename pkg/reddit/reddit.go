@@ -91,7 +91,8 @@ func GetMeme(scheme string, argument string) (msg meme.Post, err error) {
 	if strings.HasSuffix(resp.URL, resp.Permalink) || isEmbeddable(resp.URL) {
 		msg.Embed = embedMessage(resp)
 	} else {
-		msg.Title = fmt.Sprintf("*%s on %s*: <https://reddit.com%s>\n%s", resp.Author, utcToTimeStamp(int64(resp.DateCreated)), resp.Permalink, resp.Title)
+		msg.Title = fmt.Sprintf("*%s on %s*: <https://reddit.com%s>\n%s", resp.Author,
+			utcToTimeStamp(int64(resp.DateCreated)), resp.Permalink, resp.Title)
 		var messageBody string
 		if resp.Selftext != "" {
 			messageBody = fmt.Sprintf("%s\n%s", resp.Selftext, resp.URL)
@@ -100,6 +101,8 @@ func GetMeme(scheme string, argument string) (msg meme.Post, err error) {
 		}
 		msg.Message = fmt.Sprintf("%s\n⬆%v / ⬇%v", messageBody, resp.Ups, resp.Downs)
 	}
+
+	msg.NSFW = resp.IsNSFW
 
 	return msg, nil
 }

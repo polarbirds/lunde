@@ -7,4 +7,5 @@ type Post struct {
 	Message string
 	Title   string
 	Embed   discordgo.MessageEmbed
+	NSFW    bool
 }

@@ -106,6 +106,17 @@ func (srv *lundeServer) messageCreate(s *discordgo.Session, m *discordgo.Message
 		if err != nil {
 			break
 		}
+
+		c, err := s.Channel(m.ChannelID)
+		if err != nil {
+			break
+		}
+		if msg.NSFW && !c.NSFW {
+			reply, discErr = s.ChannelMessageSend(m.ChannelID,
+				fmt.Sprintf("no %s, this is a christian minecraft server", m.Author.Username))
+			break
+		}
+
 		if msg.Embed.Title != "" {
 			reply, discErr = s.ChannelMessageSendEmbed(m.ChannelID, &msg.Embed)
 		} else {
@@ -176,8 +187,8 @@ func (srv *lundeServer) messageCreate(s *discordgo.Session, m *discordgo.Message
 		if err == nil {
 			discErr = s.ChannelMessageDelete(m.ChannelID, m.ID)
 		}
-	case "at":
-
+	default:
+		return
 	}
 
 	lastExec := execution{
