@@ -11,7 +11,9 @@ import (
 
 	"github.com/bwmarrin/discordgo"
 	"github.com/polarbirds/lunde/internal/command"
+	"github.com/polarbirds/lunde/internal/define"
 	"github.com/polarbirds/lunde/internal/meme"
+	"github.com/polarbirds/lunde/internal/slap"
 	"github.com/polarbirds/lunde/pkg/reddit"
 	"github.com/polarbirds/lunde/pkg/remind"
 	"github.com/polarbirds/lunde/pkg/text"
@@ -188,39 +190,12 @@ func (srv *lundeServer) messageCreate(s *discordgo.Session, m *discordgo.Message
 			discErr = s.ChannelMessageDelete(m.ChannelID, m.ID)
 		}
 	case "slap":
-		var user *discordgo.User
-		fmt.Println(scheme)
-		if len(scheme) < 5 {
-			reply, discErr = s.ChannelMessageSendTTS(
-				m.ChannelID,
-				fmt.Sprintf("%s slap themselves around with a %d-inch trout",
-					m.Author.Username, 20+len(scheme)))
-			break
+		reply, err, discErr = slap.Generate(scheme, argument, s, m)
+		if err == nil {
+			discErr = s.ChannelMessageDelete(m.ChannelID, m.ID)
 		}
-
-		var startIndex int
-		if strings.HasPrefix(scheme, "<!@") {
-			startIndex = 3
-		} else if strings.HasPrefix(scheme, "<@") {
-			startIndex = 2
-		} else {
-			reply, discErr = s.ChannelMessageSendTTS(
-				m.ChannelID,
-				fmt.Sprintf("%s slap themselves around with a large trout", m.Author.Username))
-			break
-		}
-
-		user, err = s.User(scheme[startIndex : len(scheme)-1])
-		if err != nil {
-			reply, discErr = s.ChannelMessageSendTTS(
-				m.ChannelID,
-				fmt.Sprintf("%s slap themselves around with a large trout", m.Author.Username))
-			break
-		}
-		reply, discErr = s.ChannelMessageSendTTS(
-			m.ChannelID,
-			fmt.Sprintf("%s slaps %s around with a large trout", m.Author.Username, user.Mention()),
-		)
+	case "define":
+		reply, err, discErr = define.Define(scheme, s, m)
 	default:
 		return
 	}
