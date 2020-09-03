@@ -66,6 +66,21 @@ func Generate(target string, reason string, s *discordgo.Session, m *discordgo.M
 		err = fmt.Errorf("error getting user when using target string: %v", err)
 		return
 	}
+
+	if user.Bot {
+		if reason != "" {
+			reason = "because they are trying to be smart"
+		}
+		reply, discErr = s.ChannelMessageSend(
+			m.ChannelID,
+			fmt.Sprintf(
+				"%s makes %s slap themselves around with %s %s trout %s",
+				user.Username, m.Author.Mention(), det, adj, reason,
+			),
+		)
+		return
+	}
+
 	reply, discErr = s.ChannelMessageSend(
 		m.ChannelID,
 		fmt.Sprintf(
