@@ -113,7 +113,7 @@ func (srv *lundeServer) messageCreate(s *discordgo.Session, m *discordgo.Message
 		}
 		if msg.NSFW && !c.NSFW {
 			reply, discErr = s.ChannelMessageSend(m.ChannelID,
-				fmt.Sprintf("no %s, this is a christian minecraft server", m.Author.Username))
+				fmt.Sprintf("no %s, this is a christian channel", m.Author.Username))
 			break
 		}
 
@@ -160,7 +160,7 @@ func (srv *lundeServer) messageCreate(s *discordgo.Session, m *discordgo.Message
 	case "selfdestruct", "kys", "die", "kill", "stop", "quit", "killmyself", "killyourself":
 		reply, discErr = s.ChannelMessageSendTTS(
 			m.ChannelID,
-			fmt.Sprintf(" I'm sorry, %s. I'm afraid I can't do that.", m.Author.Username))
+			fmt.Sprintf("I'm sorry, %s. I'm afraid I can't do that.", m.Author.Username))
 	case "undo":
 		lastExec, exists := srv.lastExecs[m.ChannelID]
 		if !exists {
@@ -187,6 +187,40 @@ func (srv *lundeServer) messageCreate(s *discordgo.Session, m *discordgo.Message
 		if err == nil {
 			discErr = s.ChannelMessageDelete(m.ChannelID, m.ID)
 		}
+	case "slap":
+		var user *discordgo.User
+		fmt.Println(scheme)
+		if len(scheme) < 5 {
+			reply, discErr = s.ChannelMessageSendTTS(
+				m.ChannelID,
+				fmt.Sprintf("%s slap themselves around with a %d-inch trout",
+					m.Author.Username, 20+len(scheme)))
+			break
+		}
+
+		var startIndex int
+		if strings.HasPrefix(scheme, "<!@") {
+			startIndex = 3
+		} else if strings.HasPrefix(scheme, "<@") {
+			startIndex = 2
+		} else {
+			reply, discErr = s.ChannelMessageSendTTS(
+				m.ChannelID,
+				fmt.Sprintf("%s slap themselves around with a large trout", m.Author.Username))
+			break
+		}
+
+		user, err = s.User(scheme[startIndex : len(scheme)-1])
+		if err != nil {
+			reply, discErr = s.ChannelMessageSendTTS(
+				m.ChannelID,
+				fmt.Sprintf("%s slap themselves around with a large trout", m.Author.Username))
+			break
+		}
+		reply, discErr = s.ChannelMessageSendTTS(
+			m.ChannelID,
+			fmt.Sprintf("%s slaps %s around with a large trout", m.Author.Username, user.Mention()),
+		)
 	default:
 		return
 	}
