@@ -35,12 +35,12 @@ var (
 
 type lundeServer struct {
 	sess      *discordgo.Session
-	lastExecs map[string]execution
+	lastExecs map[string]map[string]execution
 }
 
 func main() {
 	srv := lundeServer{
-		lastExecs: make(map[string]execution),
+		lastExecs: make(map[string]map[string]execution),
 	}
 
 	lastMessage = make(map[string]*discordgo.Message)
@@ -164,7 +164,7 @@ func (srv *lundeServer) messageCreate(s *discordgo.Session, m *discordgo.Message
 			m.ChannelID,
 			fmt.Sprintf("I'm sorry, %s. I'm afraid I can't do that.", m.Author.Username))
 	case "undo":
-		lastExec, exists := srv.lastExecs[m.ChannelID]
+		lastExec, exists := srv.getLastExec(m.ChannelID, m.Author.ID)
 		if !exists {
 			break
 		}
@@ -210,10 +210,31 @@ func (srv *lundeServer) messageCreate(s *discordgo.Session, m *discordgo.Message
 		lastExec.replyID = reply.ID
 	}
 
-	srv.lastExecs[m.ChannelID] = lastExec
+	srv.putLastExec(lastExec)
 
 	srv.reportErrorIfExists(err, m, s)
 	srv.reportErrorIfExists(discErr, m, s)
+}
+
+func (srv *lundeServer) getLastExec(chanID string, userID string) (command execution, exists bool) {
+	lastExecsInChan, exists := srv.lastExecs[chanID]
+	if !exists {
+		return
+	}
+
+	command = lastExecsInChan[userID]
+	return
+}
+
+func (srv *lundeServer) putLastExec(lastExec execution) {
+	// check if map for channel exists, if not create it
+	_, exists := srv.lastExecs[lastExec.messageChannelID]
+	if !exists {
+		srv.lastExecs[lastExec.messageChannelID] = make(map[string]execution)
+		return
+	}
+
+	srv.lastExecs[lastExec.messageChannelID][lastExec.messageAuthorID] = lastExec
 }
 
 func (srv *lundeServer) reportErrorIfExists(
