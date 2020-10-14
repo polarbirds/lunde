@@ -150,22 +150,29 @@ func (r *Reminder) queueRemind(t task) {
 }
 
 // Start reads the reminds-file and queues all persisted reminds
-func (r *Reminder) Start() {
-	if _, err := os.Stat("reminds.json"); os.IsNotExist(err) {
+func (r *Reminder) Start() (err error) {
+	_, err = os.Stat("reminds.json")
+	if os.IsNotExist(err) {
 		log.Info("file reminds.json not found, starting anew!")
+		// cancel reading reminds file. It did not exists
 		return
 	}
 
 	dat, err := ioutil.ReadFile("reminds.json")
 	if err != nil {
-		log.Fatal(err)
+		return
 	}
 
-	json.Unmarshal(dat, &r.tasks)
+	err = json.Unmarshal(dat, &r.tasks)
+	if err != nil {
+		return
+	}
 
 	for _, task := range r.tasks {
 		r.queueRemind(task)
 	}
+
+	return
 }
 
 func denotationAsDuration(denotation string) time.Duration {

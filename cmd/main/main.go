@@ -2,7 +2,6 @@ package main
 
 import (
 	"errors"
-	"flag"
 	"fmt"
 	"os"
 	"os/signal"
@@ -13,74 +12,13 @@ import (
 	"github.com/polarbirds/lunde/internal/command"
 	"github.com/polarbirds/lunde/internal/define"
 	"github.com/polarbirds/lunde/internal/meme"
+	"github.com/polarbirds/lunde/internal/server"
 	"github.com/polarbirds/lunde/internal/slap"
 	"github.com/polarbirds/lunde/pkg/reddit"
-	"github.com/polarbirds/lunde/pkg/remind"
 	"github.com/polarbirds/lunde/pkg/text"
 	"github.com/polarbirds/lunde/pkg/xkcd"
 	log "github.com/sirupsen/logrus"
 )
-
-type execution struct {
-	messageAuthorID  string
-	replyID          string
-	messageChannelID string
-	messageID        string
-}
-
-var (
-	reminder    remind.Reminder
-	lastMessage map[string]*discordgo.Message
-)
-
-type lundeServer struct {
-	sess      *discordgo.Session
-	lastExecs map[string]map[string]execution
-}
-
-func main() {
-	srv := lundeServer{
-		lastExecs: make(map[string]map[string]execution),
-	}
-
-	lastMessage = make(map[string]*discordgo.Message)
-	var token string
-	flag.StringVar(&token, "t", "", "Bot Token")
-	flag.Parse()
-
-	if token == "" {
-		log.Fatal("No token given!")
-	}
-
-	dg, err := discordgo.New("Bot " + token)
-	if err != nil {
-		log.Fatal("error creating Discord session, ", err)
-		return
-	}
-
-	dg.AddHandler(srv.messageCreate)
-
-	err = dg.Open()
-	if err != nil {
-		log.Fatal("error opening connection, ", err)
-		return
-	}
-
-	srv.sess = dg
-
-	reminder = remind.Reminder{
-		DiscordSession: dg,
-	}
-
-	reminder.Start()
-
-	log.Info("Bot is now running.  Press CTRL-C to exit.")
-	sc := make(chan os.Signal, 1)
-	signal.Notify(sc, syscall.SIGINT, syscall.SIGTERM, os.Interrupt, os.Kill)
-	<-sc
-
-	dg.Close()
-}
 
 // revive:disable-next-line:cyclomatic
 func (srv *lundeServer) messageCreate(s *discordgo.Session, m *discordgo.MessageCreate) {
@@ -267,11 +205,32 @@ func (srv *lundeServer) reportErrorIfExists(
 	}
 }
 
-// func dm(userID string, message string) error {
+func main() {
+	srv, err := server.New()
+	if err != nil {
+		log.Fatal(err)
+	}
 
-// }
+	dg, err := discordgo.New("Bot " + srv.Token)
+	if err != nil {
+		log.Fatal("error creating Discord session, ", err)
+		return
+	}
 
-// func uptime(s *discordgo.Session, m *discordgo.MessageCreate) string {
-// 	m.Author.
+	dg.AddHandler(srv.Handle)
 
-// }
+	err = dg.Open()
+	if err != nil {
+		log.Fatal("error opening connection, ", err)
+		return
+	}
+
+	err = srv.Initialize(dg)
+
+	log.Info("Bot is now running.  Press CTRL-C to exit.")
+	sc := make(chan os.Signal, 1)
+	signal.Notify(sc, syscall.SIGINT, syscall.SIGTERM, os.Interrupt, os.Kill)
+	<-sc
+
+	dg.Close()
+}
