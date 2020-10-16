@@ -1,9 +1,6 @@
 .idea
 vendor/
 
-# Gox built files
-lunde_*
-
 reminds.json
 
 # windows stuff go away

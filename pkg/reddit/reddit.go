@@ -48,6 +48,8 @@ func embedMessage(resp *geddit.Submission) discordgo.MessageEmbed {
 		Timestamp: time.Unix(int64(resp.DateCreated), 0).Format(time.RFC3339),
 		Footer: &discordgo.MessageEmbedFooter{
 			Text: fmt.Sprintf("⬆%v / ⬇%v", resp.Ups, resp.Downs),
+			// revive:disable-next-line:line-length-limit
+			IconURL: "https://b.thumbs.redditmedia.com/S6FTc5IJqEbgR3rTXD5boslU49bEYpLWOlh8-CMyjTY.png",
 		},
 	}
 

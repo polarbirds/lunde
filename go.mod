@@ -7,6 +7,7 @@ require (
 	github.com/bwmarrin/discordgo v0.20.0
 	github.com/google/go-querystring v0.0.0-20170111101155-53e6ce116135
 	github.com/google/uuid v1.1.0
+	github.com/haraldfw/cfger v0.0.0-20200311144633-4b67bfd68b65
 	github.com/jmcvetta/randutil v0.0.0-20150817122601-2bb1b664bcff
 	github.com/joyt/godate v0.0.0-20150226210126-7151572574a7
 	github.com/jzelinskie/geddit v0.0.0-20171026172230-f75101e39ffe
