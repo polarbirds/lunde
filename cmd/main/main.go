@@ -5,37 +5,52 @@ import (
 	"os/signal"
 	"syscall"
 
-	"github.com/bwmarrin/discordgo"
+	"github.com/diamondburned/arikawa/v2/gateway"
+	"github.com/diamondburned/arikawa/v2/session"
 	"github.com/polarbirds/lunde/internal/server"
-	log "github.com/sirupsen/logrus"
+	"github.com/sirupsen/logrus"
 )
 
 func main() {
 	srv, err := server.New()
 	if err != nil {
-		log.Fatal(err)
+		logrus.Fatal(err)
 	}
 
-	dg, err := discordgo.New("Bot " + srv.Token)
+	sess, err := session.New("Bot " + srv.Token)
 	if err != nil {
-		log.Fatal("error creating Discord session, ", err)
+		logrus.Fatalf("error creating Discord session: %v", err)
 		return
 	}
 
-	srv.AddHandlers(dg)
+	sess.AddHandler(func(c *gateway.MessageCreateEvent) {
+		srv.LastMessages[c.ChannelID] = c
+	})
 
-	err = dg.Open()
+	sess.AddHandler(srv.InteractionHandler)
+
+	sess.Gateway.AddIntents(gateway.IntentGuilds)
+	sess.Gateway.AddIntents(gateway.IntentGuildMessages)
+	sess.Gateway.AddIntents(gateway.IntentGuildMessageReactions)
+
+	err = sess.Open()
 	if err != nil {
-		log.Fatal("error opening connection, ", err)
+		logrus.Fatalf("error opening connection: %v", err)
 		return
 	}
 
-	err = srv.Initialize(dg)
+	defer sess.Close()
 
-	log.Info("Bot is now running.  Press CTRL-C to exit.")
+	err = srv.Initialize(sess)
+	if err != nil {
+		logrus.Fatalf("error initializing server: %v", err)
+		return
+	}
+
+	logrus.Info("Bot is now running.  Press CTRL-C to exit.")
 	sc := make(chan os.Signal, 1)
 	signal.Notify(sc, syscall.SIGINT, syscall.SIGTERM, os.Interrupt, os.Kill)
-	<-sc
+	sigRec := <-sc
 
-	dg.Close()
+	logrus.Infof("signal %v received, exiting...", sigRec)
 }

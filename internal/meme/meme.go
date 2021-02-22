@@ -1,11 +1,13 @@
 package meme
 
-import "github.com/bwmarrin/discordgo"
+import (
+	"github.com/diamondburned/arikawa/v2/discord"
+)
 
 // Post represents a post from an internet page
 type Post struct {
 	Message string
 	Title   string
-	Embed   discordgo.MessageEmbed
+	Embed   *discord.Embed
 	NSFW    bool
 }

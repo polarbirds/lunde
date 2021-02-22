@@ -8,65 +8,59 @@ import (
 	"regexp"
 	"strings"
 
-	"github.com/bwmarrin/discordgo"
+	"github.com/diamondburned/arikawa/v2/api"
+	"github.com/diamondburned/arikawa/v2/discord"
 	"github.com/kortschak/zalgo"
-	log "github.com/sirupsen/logrus"
 )
 
-func Generate(
-	s *discordgo.Session,
-	m *discordgo.MessageCreate,
-	scheme string,
-	argument string,
-	lastMessage string,
-) (*discordgo.Message, error) {
-	if !strings.HasPrefix(scheme, "-") {
-		scheme = "-" + scheme
+// CommandData returns request
+func CommandData() api.CreateCommandData {
+	return api.CreateCommandData{
+		Name:        "text",
+		Description: "corrupt or converts a given message or the last message",
+		Options: []discord.CommandOption{
+			{
+				Name:        "algo",
+				Type:        discord.StringOption,
+				Description: "what algorithm to convert/corrupt the text with",
+				Required:    true,
+				Choices: []discord.CommandOptionChoice{
+					{Name: "spunge", Value: "spunge"},
+					{Name: "zalgo", Value: "zalgo"},
+					{Name: "chirese", Value: "chirese"},
+				},
+			},
+			{
+				Name:        "message",
+				Type:        discord.StringOption,
+				Description: "optional message to convert/corrupt",
+				Required:    false,
+			},
+		},
 	}
-	types, content := findTypes(strings.Join([]string{scheme, argument}, " "))
-	if content == "" {
-		content = lastMessage
-	}
-	log.Infof("%v: %q", types, content)
-	if content == "" {
+}
+
+// HandleText handles the text-command, converting/corrupting the given message in a way decided by
+// the value of algo
+func HandleText(
+	algo string,
+	message string,
+) (*api.InteractionResponseData, error) {
+	if message == "" {
 		return nil, errors.New("empty message")
 	}
 
-	for _, v := range types {
-		content = convert(content, v)
-	}
-
-	return s.ChannelMessageSend(m.ChannelID, content)
-}
-
-func findTypes(msg string) ([]string, string) {
-	types := []string{}
-	words := strings.Split(msg, " ")
-	remainingMessage := words
-	for i, v := range words {
-		if strings.HasPrefix(v, "-") {
-			types = append(types, v)
-			remainingMessage = words[i+1:]
-		} else {
-			remainingMessage = words[i:]
-			break
-		}
-	}
-	return types, strings.Join(remainingMessage, " ")
+	return &api.InteractionResponseData{
+		Content: convert(message, algo),
+	}, nil
 }
 
 func convert(content string, algo string) string {
-	if strings.HasPrefix(algo, "-") {
-		algo = algo[1:]
-	}
-
 	switch algo {
 	case "zalgo":
 		return zalgoPlz(content)
 	case "spunge":
 		return spungePlz(content)
-	case "chirese":
-		return chiresePlz(content)
 	default:
 		return content
 	}
@@ -119,10 +113,4 @@ func swap(src string, c1 string, c2 string) string {
 	src = strings.Replace(src, tmp, c2, -1) // tmp -> c2
 
 	return src
-}
-
-func chiresePlz(content string) string {
-	content = swap(content, "l", "r")
-	content = swap(content, "L", "R")
-	return content
 }

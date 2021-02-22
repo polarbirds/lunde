@@ -9,7 +9,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/bwmarrin/discordgo"
+	"github.com/diamondburned/arikawa/v2/api"
+	"github.com/diamondburned/arikawa/v2/discord"
+	"github.com/diamondburned/arikawa/v2/session"
 	"github.com/google/uuid"
 	date "github.com/joyt/godate"
 	log "github.com/sirupsen/logrus"
@@ -17,20 +19,49 @@ import (
 
 // Reminder represents a Reminder process object
 type Reminder struct {
-	DiscordSession *discordgo.Session
+	DiscordSession *session.Session
 	tasks          []task
 }
 
 type task struct {
 	TimeStr   time.Time
 	Message   string
-	ChannelID string
+	ChannelID discord.ChannelID
 	ID        string
+}
+
+// CommandData returns request
+func CommandData() api.CreateCommandData {
+	return api.CreateCommandData{
+		Name:        "remind",
+		Description: "send the given message in the given channel at the specified time",
+		Options: []discord.CommandOption{
+			{
+				Name:        "when",
+				Type:        discord.StringOption,
+				Description: "in how long to send the message",
+				Required:    true,
+			},
+			{
+				Name:        "message",
+				Type:        discord.StringOption,
+				Description: "what message to send",
+				Required:    true,
+			},
+			{
+				Name: "channel",
+				Type: discord.ChannelOption,
+				Description: "specify what channel to send the message, if none is given this " +
+					"channel will be used",
+				Required: false,
+			},
+		},
+	}
 }
 
 // CreateRemindStrict creates a remind-task
 func (r *Reminder) CreateRemindStrict(
-	timeStr string, message string, channelID string,
+	timeStr string, message string, channelID discord.ChannelID,
 ) error {
 	task, err := r.createRemind(timeStr, message, channelID)
 	if err != nil {
@@ -43,7 +74,7 @@ func (r *Reminder) CreateRemindStrict(
 }
 
 func (r *Reminder) createRemind(
-	timeStr string, message string, channelID string,
+	timeStr string, message string, channelID discord.ChannelID,
 ) (t task, err error) {
 	var timestamp time.Time
 	timestamp, err = date.ParseInLocation(strings.Replace(timeStr, "+", " ", -1), time.Local)
@@ -65,14 +96,16 @@ func (r *Reminder) createRemind(
 		}
 
 		timestamp = time.Now().Add(totalDuration)
+
+		err = nil
 	}
 
-	id, err := uuid.NewUUID()
-	if err != nil {
-		return
+	t = task{
+		TimeStr:   timestamp,
+		Message:   message,
+		ChannelID: channelID,
+		ID:        uuid.New().String(),
 	}
-
-	t = task{timestamp, message, channelID, id.String()}
 
 	r.queueRemind(t)
 	return
@@ -144,7 +177,7 @@ func (r *Reminder) queueRemind(t task) {
 			timer := time.NewTimer(tsk.TimeStr.Sub(time.Now()))
 			<-timer.C
 		}
-		r.DiscordSession.ChannelMessageSend(tsk.ChannelID, tsk.Message)
+		r.DiscordSession.SendText(tsk.ChannelID, tsk.Message)
 		r.deleteTask(tsk.ID) // delete handled task
 	}(t)
 }

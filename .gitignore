@@ -8,4 +8,6 @@ run.bat
 build-for-linux.bat
 
 token.txt
+appid.txt
+guildid.txt
 bin/
