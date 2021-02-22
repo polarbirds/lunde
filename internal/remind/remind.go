@@ -14,7 +14,7 @@ import (
 	"github.com/diamondburned/arikawa/v2/session"
 	"github.com/google/uuid"
 	date "github.com/joyt/godate"
-	log "github.com/sirupsen/logrus"
+	"github.com/sirupsen/logrus"
 )
 
 // Reminder represents a Reminder process object
@@ -145,11 +145,11 @@ func parseStringToDuration(s string) (time.Duration, error) {
 func (r *Reminder) saveTasks() {
 	dat, err := json.Marshal(r.tasks)
 	if err != nil {
-		log.Error(err)
+		logrus.Error(err)
 	}
 	err = ioutil.WriteFile("reminds.json", dat, 0x600)
 	if err != nil {
-		log.Error(err)
+		logrus.Error(err)
 	}
 }
 
@@ -162,7 +162,7 @@ func (r *Reminder) deleteTask(id string) {
 		}
 	}
 	if i == -1 {
-		log.Infof("task with id %s not found", id)
+		logrus.Infof("task with id %s not found", id)
 		return
 	}
 	r.tasks = r.tasks[:i+copy(r.tasks[i:], r.tasks[i+1:])]
@@ -170,7 +170,7 @@ func (r *Reminder) deleteTask(id string) {
 }
 
 func (r *Reminder) queueRemind(t task) {
-	log.Infof("created reminder with datetime %q and message %q", t.TimeStr, t.Message)
+	logrus.Infof("created reminder with datetime %q and message %q", t.TimeStr, t.Message)
 	go func(tsk task) {
 		if tsk.TimeStr.After(time.Now()) { // check if remind-time is in the future
 			// if so wait
@@ -186,7 +186,7 @@ func (r *Reminder) queueRemind(t task) {
 func (r *Reminder) Start() (err error) {
 	_, err = os.Stat("reminds.json")
 	if os.IsNotExist(err) {
-		log.Info("file reminds.json not found, starting anew!")
+		logrus.Info("file reminds.json not found, starting anew!")
 		// cancel reading reminds file. It did not exists
 		return
 	}
