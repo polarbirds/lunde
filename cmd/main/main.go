@@ -12,17 +12,20 @@ import (
 )
 
 func main() {
+	logrus.Info("starting lunde")
 	srv, err := server.New()
 	if err != nil {
 		logrus.Fatal(err)
 	}
 
+	logrus.Info("creating sessions")
 	sess, err := session.New("Bot " + srv.Token)
 	if err != nil {
 		logrus.Fatalf("error creating Discord session: %v", err)
 		return
 	}
 
+	logrus.Info("adding handlers and intents")
 	sess.AddHandler(func(c *gateway.MessageCreateEvent) {
 		srv.LastMessages[c.ChannelID] = c
 	})
@@ -33,6 +36,7 @@ func main() {
 	sess.Gateway.AddIntents(gateway.IntentGuildMessages)
 	sess.Gateway.AddIntents(gateway.IntentGuildMessageReactions)
 
+	logrus.Info("opening session with discord")
 	err = sess.Open()
 	if err != nil {
 		logrus.Fatalf("error opening connection: %v", err)
@@ -41,6 +45,7 @@ func main() {
 
 	defer sess.Close()
 
+	logrus.Info("initializing server")
 	err = srv.Initialize(sess)
 	if err != nil {
 		logrus.Fatalf("error initializing server: %v", err)
@@ -52,5 +57,5 @@ func main() {
 	signal.Notify(sc, syscall.SIGINT, syscall.SIGTERM, os.Interrupt, os.Kill)
 	sigRec := <-sc
 
-	logrus.Infof("signal %v received, exiting...", sigRec)
+	logrus.Infof("signal %v received, exiting", sigRec)
 }

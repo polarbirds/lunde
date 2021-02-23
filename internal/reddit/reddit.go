@@ -67,7 +67,7 @@ func embedMessage(resp *geddit.Submission) discord.Embed {
 func CommandData() api.CreateCommandData {
 	return api.CreateCommandData{
 		Name:        "reddit",
-		Description: "fetches reddit posts",
+		Description: "fetches reddit posts sorting by the specified order from the given subreddit",
 		Options: []discord.CommandOption{
 			{
 				Name:        "sort",
