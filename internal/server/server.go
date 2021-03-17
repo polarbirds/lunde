@@ -176,7 +176,7 @@ func (srv *Server) InteractionHandler(ev *gateway.InteractionCreateEvent) {
 	case "text":
 		msg := options["message"]
 		if msg == "" {
-			if lMsg, ok := srv.LastMessages[ev.ChannelID]; ok {
+			if lMsg, ok := srv.lastMessages[ev.ChannelID]; ok {
 				msg = lMsg.Content
 			}
 		}
