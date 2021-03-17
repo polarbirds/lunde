@@ -26,9 +26,7 @@ func main() {
 	}
 
 	logrus.Info("adding handlers and intents")
-	sess.AddHandler(func(c *gateway.MessageCreateEvent) {
-		srv.LastMessages[c.ChannelID] = c
-	})
+	sess.AddHandler(srv.MessageCreateHandler)
 
 	sess.AddHandler(srv.InteractionHandler)
 

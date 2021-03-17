@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"strconv"
 	"strings"
+	"sync"
 
 	"github.com/diamondburned/arikawa/v2/api"
 	"github.com/diamondburned/arikawa/v2/discord"
@@ -19,13 +20,6 @@ import (
 	"github.com/sirupsen/logrus"
 )
 
-type cmdExec struct {
-	messageAuthorID  discord.UserID
-	messageChannelID discord.ChannelID
-	messageID        discord.Snowflake
-	replyID          string
-}
-
 // Server is the config and main server
 type Server struct {
 	MaxCMDHistory int    `yaml:"maxCMDHistory" validate:"min=1"`
@@ -38,18 +32,17 @@ type Server struct {
 	appIDSnowFlake   discord.AppID
 	guildIDSnowFlake discord.GuildID
 
-	sess           *session.Session
-	cmdExecHistory map[discord.UserID]map[discord.ChannelID][]cmdExec
-	reminder       remind.Reminder
-	LastMessages   map[discord.ChannelID]*gateway.MessageCreateEvent
+	sess                  *session.Session
+	reminder              remind.Reminder
+	lastMessages          map[discord.ChannelID]*gateway.MessageCreateEvent
+	lastMessageWriteMutex sync.Mutex
 }
 
 // New creates a new server instance with initialized variables
 func New() (srv Server, err error) {
 	srv = Server{
 		// lastExecs:    make(map[string]map[string]execution),
-		LastMessages:   make(map[discord.ChannelID]*gateway.MessageCreateEvent),
-		cmdExecHistory: make(map[discord.UserID]map[discord.ChannelID][]cmdExec),
+		lastMessages: make(map[discord.ChannelID]*gateway.MessageCreateEvent),
 	}
 
 	_, err = cfger.ReadStructuredCfgRecursive("env::CONFIG", &srv)
@@ -102,25 +95,31 @@ func (srv *Server) Initialize(s *session.Session) error {
 	}
 	srv.reminder = rmd
 
+	existingCmds, err := srv.sess.GuildCommands(srv.appIDSnowFlake, srv.guildIDSnowFlake)
+	if err != nil {
+		return fmt.Errorf("error fetching existing commands: %v", err)
+	}
+
+	logrus.Infof("deleting %d guild commands...", len(existingCmds))
+	for i, cmd := range existingCmds {
+		logrus.Infof("deleting guild command (%d/%d) %q", i+1, len(existingCmds), cmd.Name)
+		err := srv.sess.DeleteGuildCommand(
+			cmd.AppID,
+			srv.guildIDSnowFlake,
+			cmd.ID)
+		if err != nil {
+			return fmt.Errorf("error occurred deleting guild command %q: %v", cmd.Name, err)
+		}
+	}
+
+	logrus.Infof("deleted %d guild commands", len(existingCmds))
+
 	cmds := []api.CreateCommandData{
 		reddit.CommandData(),
 		define.CommandData(),
 		slap.CommandData(),
 		text.CommandData(),
 		remind.CommandData(),
-		{
-			Name:        "undo",
-			Description: "undo your last <num> command(s)",
-			Options: []discord.CommandOption{
-				{
-					Name: "num",
-					Type: discord.StringOption,
-					Description: "how many commands to undo, defaults to 1 (CANNOT BE INT FOR " +
-						"SOME GOD-FORSAKEN REASON)",
-					Required: false,
-				},
-			},
-		},
 	}
 
 	logrus.Infof("creating %d guild commands...", len(cmds))
@@ -136,6 +135,15 @@ func (srv *Server) Initialize(s *session.Session) error {
 	}
 
 	return nil
+}
+
+// InteractionHandler is a handler-function handling interaction-events
+func (srv *Server) MessageCreateHandler(c *gateway.MessageCreateEvent) {
+	srv.lastMessageWriteMutex.Lock()
+
+	srv.lastMessages[c.ChannelID] = c
+
+	srv.lastMessageWriteMutex.Unlock()
 }
 
 // InteractionHandler is a handler-function handling interaction-events
@@ -191,22 +199,6 @@ func (srv *Server) InteractionHandler(ev *gateway.InteractionCreateEvent) {
 		if err != nil {
 			err = fmt.Errorf("error handling /remind: %v", err)
 		}
-	case "undo":
-		logrus.Infof("undo with amount string %v", options["num"])
-		var amount = 1
-		if amountStr := options["num"]; amountStr != "" {
-			amount, err = strconv.Atoi(amountStr)
-			if err != nil {
-				err = fmt.Errorf("error handling /undo: err reading amount as int: %v", err)
-				break
-			}
-		}
-
-		logrus.Infof("undo with amount int %v", amount)
-		err = srv.handleUndo(ev.Member.User.ID, ev.ChannelID, amount)
-		if err != nil {
-			err = fmt.Errorf("error handling /undo: %v", err)
-		}
 
 		// TODO: implement xkcd. Beware of 3s limit of initial response
 		// case "xkcd":
@@ -227,12 +219,6 @@ func (srv *Server) InteractionHandler(ev *gateway.InteractionCreateEvent) {
 		}
 		if err := srv.sess.RespondInteraction(ev.ID, ev.Token, data); err != nil {
 			logrus.Errorf("failed to send interaction callback: %v", err)
-		} else {
-			srv.storeExec(cmdExec{
-				messageAuthorID:  ev.Member.User.ID,
-				messageChannelID: ev.ChannelID,
-				messageID:        ev.Data.ID,
-			})
 		}
 	}
 
@@ -245,71 +231,6 @@ func (srv *Server) InteractionHandler(ev *gateway.InteractionCreateEvent) {
 			srv.sess.SendText(dm.ID, err.Error())
 		}
 	}
-}
-
-func (srv *Server) storeExec(cmd cmdExec) {
-	user, userExists := srv.cmdExecHistory[cmd.messageAuthorID]
-	if !userExists {
-		user = make(map[discord.ChannelID][]cmdExec)
-	}
-
-	userChan, userChanExists := user[cmd.messageChannelID]
-	if !userChanExists {
-		userChan = []cmdExec{cmd}
-	} else {
-		userChan = append([]cmdExec{cmd}, userChan...)
-		maxLenOrMax := len(userChan)
-		if maxLenOrMax > srv.MaxCMDHistory {
-			maxLenOrMax = srv.MaxCMDHistory
-		}
-
-		userChan = userChan[:maxLenOrMax]
-	}
-
-	user[cmd.messageChannelID] = userChan
-	srv.cmdExecHistory[cmd.messageAuthorID] = user
-}
-
-func (srv *Server) handleUndo(
-	authorID discord.UserID,
-	channel discord.ChannelID,
-	amount int,
-) error {
-	if amount < 1 {
-		return errors.New("amount must be 1 or larger")
-	}
-
-	user, userExists := srv.cmdExecHistory[authorID]
-	if !userExists {
-		return errors.New("no commands found for given user")
-	}
-
-	userChan, userChanExists := user[channel]
-	if !userChanExists || len(userChan) == 0 {
-		return errors.New("no commands found for user in given channel")
-	}
-
-	defer func() {
-		user[channel] = userChan
-		srv.cmdExecHistory[authorID] = user
-	}()
-
-	for deleted := 0; deleted < amount; deleted++ {
-		cmd := userChan[0]
-		logrus.Infof("deleting message %+v", cmd)
-		err := srv.sess.DeleteMessage(channel, discord.MessageID(cmd.messageID))
-		if err != nil {
-			return fmt.Errorf("deleting message: %v", err)
-		}
-
-		userChan = userChan[1:]
-		if len(userChan) == 0 {
-			// no more cmds to delete
-			return nil
-		}
-	}
-
-	return nil
 }
 
 func opsToMap(ops []gateway.InteractionOption) (opMap map[string]string) {
