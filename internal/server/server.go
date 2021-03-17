@@ -137,7 +137,7 @@ func (srv *Server) Initialize(s *session.Session) error {
 	return nil
 }
 
-// InteractionHandler is a handler-function handling interaction-events
+// MessageCreateHandler handles every incoming normal message
 func (srv *Server) MessageCreateHandler(c *gateway.MessageCreateEvent) {
 	srv.lastMessageWriteMutex.Lock()
 
@@ -146,8 +146,9 @@ func (srv *Server) MessageCreateHandler(c *gateway.MessageCreateEvent) {
 	srv.lastMessageWriteMutex.Unlock()
 }
 
-// InteractionHandler is a handler-function handling interaction-events
-func (srv *Server) InteractionHandler(ev *gateway.InteractionCreateEvent) {
+//revive:disable-next-line:cyclomatic
+// HandleInteraction is a handler-function handling interaction-events
+func (srv *Server) HandleInteraction(ev *gateway.InteractionCreateEvent) {
 	var response *api.InteractionResponseData
 	var err error
 	options := opsToMap(ev.Data.Options)
