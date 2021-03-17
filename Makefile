@@ -22,3 +22,6 @@ lint: lint-all
 
 lint-all:
 	revive -config revive.toml -formatter friendly -exclude vendor/... ./...
+
+install-tools:
+	./build/install_tools.sh
