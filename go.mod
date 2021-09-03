@@ -4,7 +4,6 @@ go 1.12
 
 require (
 	github.com/beefsack/go-rate v0.0.0-20180408011153-efa7637bb9b6 // indirect
-	github.com/bwmarrin/discordgo v0.23.2
 	github.com/diamondburned/arikawa/v2 v2.0.4
 	github.com/golang/protobuf v1.4.2 // indirect
 	github.com/google/go-querystring v0.0.0-20170111101155-53e6ce116135
