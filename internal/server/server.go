@@ -41,7 +41,6 @@ type Server struct {
 // New creates a new server instance with initialized variables
 func New() (srv Server, err error) {
 	srv = Server{
-		// lastExecs:    make(map[string]map[string]execution),
 		lastMessages: make(map[discord.ChannelID]*gateway.MessageCreateEvent),
 	}
 
@@ -81,7 +80,7 @@ func New() (srv Server, err error) {
 	return
 }
 
-// Initialize Initializes the server with the given session. May panic if given session is nil
+// Initialize the server with the given session. May panic if given session is nil
 func (srv *Server) Initialize(s *session.Session) error {
 	srv.sess = s
 
@@ -219,17 +218,6 @@ func (srv *Server) HandleInteraction(ev *gateway.InteractionCreateEvent) {
 		if err != nil {
 			err = fmt.Errorf("error handling /remind: %v", err)
 		}
-
-		// TODO: implement xkcd. Beware of 3s limit of initial response
-		// case "xkcd":
-		// 	var msg meme.Post
-		// 	msg, err = xkcd.GetMeme(scheme, argument)
-		// 	if msg.Embed.Title != "" {
-		// 		reply, discErr = s.ChannelMessageSendEmbed(m.ChannelID, &msg.Embed)
-		// 	} else {
-		// 		reply, discErr = s.ChannelMessageSend(
-		// 			m.ChannelID, fmt.Sprintf("%s\n%s", msg.Title, msg.Message))
-		// 	}
 	}
 
 	if response != nil {
