@@ -9,10 +9,10 @@ import (
 	"strings"
 	"time"
 
-	"github.com/bwmarrin/discordgo"
+	"github.com/diamondburned/arikawa/v2/api"
+	"github.com/diamondburned/arikawa/v2/discord"
 	"github.com/google/go-querystring/query"
 	"github.com/jzelinskie/geddit"
-	"github.com/polarbirds/lunde/internal/meme"
 )
 
 var (
@@ -37,17 +37,19 @@ func isEmbeddable(url string) bool {
 	return false
 }
 
-func embedMessage(resp *geddit.Submission) discordgo.MessageEmbed {
-	embed := discordgo.MessageEmbed{
+func embedMessage(resp *geddit.Submission) discord.Embed {
+	embed := discord.Embed{
 		Title:       resp.Title,
 		Description: resp.Selftext,
-		Author: &discordgo.MessageEmbedAuthor{
+		Author: &discord.EmbedAuthor{
 			Name: resp.Author,
 		},
 		URL:       fmt.Sprintf("https://reddit.com%s", resp.Permalink),
-		Timestamp: time.Unix(int64(resp.DateCreated), 0).Format(time.RFC3339),
-		Footer: &discordgo.MessageEmbedFooter{
-			Text: fmt.Sprintf("⬆%v / ⬇%v", resp.Ups, resp.Downs),
+		Timestamp: discord.NewTimestamp(time.Unix(int64(resp.DateCreated), 0)),
+		Footer: &discord.EmbedFooter{
+			Text: fmt.Sprintf("⬆%v", resp.Ups),
+			// revive:disable-next-line:line-length-limit
+			Icon: "https://b.thumbs.redditmedia.com/S6FTc5IJqEbgR3rTXD5boslU49bEYpLWOlh8-CMyjTY.png",
 		},
 	}
 
@@ -56,22 +58,51 @@ func embedMessage(resp *geddit.Submission) discordgo.MessageEmbed {
 	}
 
 	if !strings.HasSuffix(resp.URL, resp.Permalink) {
-		embed.Image = &discordgo.MessageEmbedImage{URL: resp.URL}
+		embed.Image = &discord.EmbedImage{URL: resp.URL}
 	}
 	return embed
 }
 
-// GetMeme fetches a post from reddit from the given parameters
-func GetMeme(scheme string, argument string) (msg meme.Post, err error) {
+// CommandData returns request
+func CommandData() api.CreateCommandData {
+	return api.CreateCommandData{
+		Name:        "reddit",
+		Description: "fetches reddit posts sorting by the specified order from the given subreddit",
+		Options: []discord.CommandOption{
+			{
+				Name:        "sort",
+				Type:        discord.StringOption,
+				Description: "what algorithm to sort posts by",
+				Required:    true,
+				Choices: []discord.CommandOptionChoice{
+					{Name: "top", Value: "top"},
+					{Name: "hot", Value: "hot"},
+					{Name: "random", Value: "random"},
+				},
+			},
+			{
+				Name:        "sub",
+				Type:        discord.StringOption,
+				Description: "what subreddit to fetch from",
+				Required:    true,
+			},
+		},
+	}
+}
+
+// HandleReddit fetches a post from reddit from the given parameters
+func HandleReddit(sort string, sub string) (
+	response *api.InteractionResponseData, isNSFW bool, err error,
+) {
 	var resp *geddit.Submission
 	var subreddit string
 	nrPost := 1
-	splits := strings.Split(argument, " ")
+	splits := strings.Split(sub, " ")
 	subreddit = splits[0]
 	if len(splits) > 1 {
 		nrPost, err = strconv.Atoi(splits[1])
 		if err != nil {
-			return msg, err
+			return
 		}
 	}
 	// make 0-indexed
@@ -82,30 +113,39 @@ func GetMeme(scheme string, argument string) (msg meme.Post, err error) {
 		nrPost = 0
 	}
 
-	resp, err = getPost(scheme, subreddit, nrPost)
-
+	resp, err = getPost(sort, subreddit, nrPost)
 	if err != nil {
-		return msg, err
+		return
 	}
 
+	isNSFW = resp.IsNSFW
+
+	response = &api.InteractionResponseData{}
 	if strings.HasSuffix(resp.URL, resp.Permalink) || isEmbeddable(resp.URL) {
-		msg.Embed = embedMessage(resp)
+		response.Embeds = []discord.Embed{embedMessage(resp)}
 	} else {
-		msg.Title = fmt.Sprintf("*%s on %s*: <https://reddit.com%s>\n%s", resp.Author,
-			utcToTimeStamp(int64(resp.DateCreated)), resp.Permalink, resp.Title)
+		title := fmt.Sprintf("*%s on %s*: <https://reddit.com%s>\n%s",
+			resp.Author, utcToTimeStamp(int64(resp.DateCreated)), resp.Permalink, resp.Title)
 		var messageBody string
 		if resp.Selftext != "" {
 			messageBody = fmt.Sprintf("%s\n%s", resp.Selftext, resp.URL)
 		} else {
 			messageBody = resp.URL
 		}
-		msg.Message = fmt.Sprintf("%s\n⬆%v / ⬇%v", messageBody, resp.Ups, resp.Downs)
+		response.Content = fmt.Sprintf("%s\n%s\n⬆%v", title, messageBody, resp.Ups)
 	}
 
-	msg.NSFW = resp.IsNSFW
-
-	return msg, nil
+	return
 }
+
+/*
+	response = &api.InteractionResponseData{}
+	if msg.Embed != nil {
+		response.Embeds = append(response.Embeds, *msg.Embed)
+	} else {
+		response.Content = fmt.Sprintf("%s\n%s", msg.Title, msg.Message)
+	}
+*/
 
 func getPost(scheme string, subreddit string, nrPost int) (*geddit.Submission, error) {
 	// Set listing options
@@ -118,9 +158,9 @@ func getPost(scheme string, subreddit string, nrPost int) (*geddit.Submission, e
 	var err error
 
 	if subreddit == "" {
-		submissions, err = subredditSubmissions("", nrPost, scheme, subOpts)
+		submissions, err = subredditSubmissions("", scheme, subOpts)
 	} else {
-		submissions, err = subredditSubmissions(subreddit, nrPost, scheme, subOpts)
+		submissions, err = subredditSubmissions(subreddit, scheme, subOpts)
 	}
 
 	if err != nil {
@@ -142,7 +182,7 @@ func getPost(scheme string, subreddit string, nrPost int) (*geddit.Submission, e
 
 // ripped from github.com/jzelinskie/geddit, but now supports all of reddit's sorting-algorithms
 func subredditSubmissions(
-	subreddit string, nrPost int, sort string, params geddit.ListingOptions,
+	subreddit string, sort string, params geddit.ListingOptions,
 ) ([]*geddit.Submission, error) {
 	v, err := query.Values(params)
 	if err != nil {

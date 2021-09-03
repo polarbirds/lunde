@@ -9,28 +9,59 @@ import (
 	"strings"
 	"time"
 
-	"github.com/bwmarrin/discordgo"
+	"github.com/diamondburned/arikawa/v2/api"
+	"github.com/diamondburned/arikawa/v2/discord"
+	"github.com/diamondburned/arikawa/v2/session"
 	"github.com/google/uuid"
 	date "github.com/joyt/godate"
-	log "github.com/sirupsen/logrus"
+	"github.com/sirupsen/logrus"
 )
 
 // Reminder represents a Reminder process object
 type Reminder struct {
-	DiscordSession *discordgo.Session
+	DiscordSession *session.Session
 	tasks          []task
 }
 
 type task struct {
 	TimeStr   time.Time
 	Message   string
-	ChannelID string
+	ChannelID discord.ChannelID
 	ID        string
+}
+
+// CommandData returns request
+func CommandData() api.CreateCommandData {
+	return api.CreateCommandData{
+		Name:        "remind",
+		Description: "send the given message in the given channel at the specified time",
+		Options: []discord.CommandOption{
+			{
+				Name:        "when",
+				Type:        discord.StringOption,
+				Description: "in how long to send the message",
+				Required:    true,
+			},
+			{
+				Name:        "message",
+				Type:        discord.StringOption,
+				Description: "what message to send",
+				Required:    true,
+			},
+			{
+				Name: "channel",
+				Type: discord.ChannelOption,
+				Description: "specify what channel to send the message, if none is given this " +
+					"channel will be used",
+				Required: false,
+			},
+		},
+	}
 }
 
 // CreateRemindStrict creates a remind-task
 func (r *Reminder) CreateRemindStrict(
-	timeStr string, message string, channelID string,
+	timeStr string, message string, channelID discord.ChannelID,
 ) error {
 	task, err := r.createRemind(timeStr, message, channelID)
 	if err != nil {
@@ -43,7 +74,7 @@ func (r *Reminder) CreateRemindStrict(
 }
 
 func (r *Reminder) createRemind(
-	timeStr string, message string, channelID string,
+	timeStr string, message string, channelID discord.ChannelID,
 ) (t task, err error) {
 	var timestamp time.Time
 	timestamp, err = date.ParseInLocation(strings.Replace(timeStr, "+", " ", -1), time.Local)
@@ -65,14 +96,16 @@ func (r *Reminder) createRemind(
 		}
 
 		timestamp = time.Now().Add(totalDuration)
+
+		err = nil
 	}
 
-	id, err := uuid.NewUUID()
-	if err != nil {
-		return
+	t = task{
+		TimeStr:   timestamp,
+		Message:   message,
+		ChannelID: channelID,
+		ID:        uuid.New().String(),
 	}
-
-	t = task{timestamp, message, channelID, id.String()}
 
 	r.queueRemind(t)
 	return
@@ -112,11 +145,11 @@ func parseStringToDuration(s string) (time.Duration, error) {
 func (r *Reminder) saveTasks() {
 	dat, err := json.Marshal(r.tasks)
 	if err != nil {
-		log.Error(err)
+		logrus.Error(err)
 	}
 	err = ioutil.WriteFile("reminds.json", dat, 0x600)
 	if err != nil {
-		log.Error(err)
+		logrus.Error(err)
 	}
 }
 
@@ -129,7 +162,7 @@ func (r *Reminder) deleteTask(id string) {
 		}
 	}
 	if i == -1 {
-		log.Infof("task with id %s not found", id)
+		logrus.Infof("task with id %s not found", id)
 		return
 	}
 	r.tasks = r.tasks[:i+copy(r.tasks[i:], r.tasks[i+1:])]
@@ -137,35 +170,42 @@ func (r *Reminder) deleteTask(id string) {
 }
 
 func (r *Reminder) queueRemind(t task) {
-	log.Infof("created reminder with datetime %q and message %q", t.TimeStr, t.Message)
+	logrus.Infof("created reminder with datetime %q and message %q", t.TimeStr, t.Message)
 	go func(tsk task) {
 		if tsk.TimeStr.After(time.Now()) { // check if remind-time is in the future
 			// if so wait
 			timer := time.NewTimer(tsk.TimeStr.Sub(time.Now()))
 			<-timer.C
 		}
-		r.DiscordSession.ChannelMessageSend(tsk.ChannelID, tsk.Message)
+		r.DiscordSession.SendText(tsk.ChannelID, tsk.Message)
 		r.deleteTask(tsk.ID) // delete handled task
 	}(t)
 }
 
 // Start reads the reminds-file and queues all persisted reminds
-func (r *Reminder) Start() {
-	if _, err := os.Stat("reminds.json"); os.IsNotExist(err) {
-		log.Info("file reminds.json not found, starting anew!")
+func (r *Reminder) Start() (err error) {
+	_, err = os.Stat("reminds.json")
+	if os.IsNotExist(err) {
+		logrus.Info("file reminds.json not found, starting anew!")
+		// cancel reading reminds file. It did not exists
 		return
 	}
 
 	dat, err := ioutil.ReadFile("reminds.json")
 	if err != nil {
-		log.Fatal(err)
+		return
 	}
 
-	json.Unmarshal(dat, &r.tasks)
+	err = json.Unmarshal(dat, &r.tasks)
+	if err != nil {
+		return
+	}
 
 	for _, task := range r.tasks {
 		r.queueRemind(task)
 	}
+
+	return
 }
 
 func denotationAsDuration(denotation string) time.Duration {

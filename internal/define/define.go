@@ -1,25 +1,47 @@
 package define
 
 import (
-	"errors"
+	"encoding/json"
 	"fmt"
 	"io/ioutil"
 	"net/http"
+	"net/url"
 	"strings"
 
-	"github.com/bwmarrin/discordgo"
+	"github.com/diamondburned/arikawa/v2/api"
+	"github.com/diamondburned/arikawa/v2/discord"
 )
 
-// Define fetches and sends a definition for the given term
-func Define(term string, s *discordgo.Session, m *discordgo.MessageCreate) (
-	reply *discordgo.Message, err error, discErr error,
-) {
-	if term == "" {
-		err = errors.New("term is empty boi, use !define termShouldBeHereDumbass")
-		return
+type ubResponse struct {
+	List []struct {
+		Word       string `json:"word"`
+		Definition string `json:"definition"`
+		Example    string `json:"example"`
+		ThumbsUp   int    `json:"thumbs_up"`
+		ThumbsDown int    `json:"thumbs_down"`
+	} `json:"list"`
+}
+
+// CommandData returns request
+func CommandData() api.CreateCommandData {
+	return api.CreateCommandData{
+		Name:        "define",
+		Description: "fetch a totally legit definition from a very reputable and renowned source",
+		Options: []discord.CommandOption{
+			{
+				Name:        "term",
+				Type:        discord.StringOption,
+				Description: "term to fetch definition for",
+				Required:    true,
+			},
+		},
 	}
+}
+
+// HandleDefine fetches and sends a definition for the given term
+func HandleDefine(term string) (reply *api.InteractionResponseData, err error) {
 	var res *http.Response
-	res, err = http.Get("https://describingwords.io/api/define?term=" + term)
+	res, err = http.Get("http://api.urbandictionary.com/v0/define?term=" + url.QueryEscape(term))
 	if err != nil {
 		err = fmt.Errorf("error contacting define server: %v", err)
 		return
@@ -36,15 +58,34 @@ func Define(term string, s *discordgo.Session, m *discordgo.MessageCreate) (
 		return
 	}
 
-	bodString := string(bodBytes)
-	if bodString == "" {
+	var ubRes ubResponse
+	err = json.Unmarshal(bodBytes, &ubRes)
+	if err != nil {
+		err = fmt.Errorf("no definitions found")
+		return
+	}
+
+	if len(ubRes.List) == 0 {
 		err = fmt.Errorf("no definition returned for the term: %s", term)
 		return
 	}
 
-	reply, discErr = s.ChannelMessageSend(
-		m.ChannelID,
-		fmt.Sprintf("definition(s) of %s:\n%s", term, strings.ReplaceAll(bodString, "\n\n", "\n")),
-	)
+	replyContent := fmt.Sprintf("Definition(s) for **%s**:", term)
+	for i := 0; i < 3 && i < len(ubRes.List); i++ {
+		def := ubRes.List[i]
+		replyContent += fmt.Sprintf("\n%d) **%s**: %s ⬆%v / ⬇%v\n%s\n",
+			i+1, def.Word, sanitizeUrbanDictionaryText(def.Definition),
+			def.ThumbsUp, def.ThumbsDown,
+			sanitizeUrbanDictionaryText(def.Example))
+	}
+
+	reply = &api.InteractionResponseData{
+		Content: replyContent,
+	}
+
 	return
+}
+
+func sanitizeUrbanDictionaryText(text string) string {
+	return strings.ReplaceAll(strings.ReplaceAll(text, "]", ""), "[", "")
 }

@@ -8,13 +8,37 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/bwmarrin/discordgo"
+	"github.com/diamondburned/arikawa/v2/api"
+	"github.com/diamondburned/arikawa/v2/discord"
 	"github.com/jmcvetta/randutil"
 )
 
-// Generate generates and sends a slap-sentence for the author and target of the given message
-func Generate(target string, reason string, s *discordgo.Session, m *discordgo.MessageCreate) (
-	reply *discordgo.Message, err error, discErr error,
+// CommandData returns request
+func CommandData() api.CreateCommandData {
+	return api.CreateCommandData{
+		Name:        "slap",
+		Description: "slap someone with a trout",
+		Options: []discord.CommandOption{
+			{
+				Name:        "target",
+				Type:        discord.UserOption,
+				Description: "who to slap, a mention",
+				Required:    true,
+			},
+			{
+				Name: "reason",
+				Type: discord.StringOption,
+				Description: "optional addendum to the slap output, appended after `slaps <x> " +
+					"with a trout <addendum>",
+				Required: false,
+			},
+		},
+	}
+}
+
+// HandleSlap generates and sends a slap-sentence for the author and target of the given message
+func HandleSlap(author discord.User, targetID string, reason string) (
+	response *api.InteractionResponseData, err error,
 ) {
 	det, adj, err := getAdjective()
 	if err != nil {
@@ -22,72 +46,18 @@ func Generate(target string, reason string, s *discordgo.Session, m *discordgo.M
 		return
 	}
 
-	var user *discordgo.User
-	if len(target) < 5 {
-		reply, discErr = s.ChannelMessageSend(
-			m.ChannelID,
-			fmt.Sprintf(
-				"%s slap themselves around with a short target and %s %s trout",
-				m.Author.Username, det, adj,
-			),
-		)
-		err = fmt.Errorf("too short target string: %s", target)
-		return
-	}
-
-	var startIndex int
-	if strings.HasPrefix(target, "<@!") {
-		startIndex = 3
-	} else if strings.HasPrefix(target, "<@") {
-		startIndex = 2
-	} else {
-		reply, discErr = s.ChannelMessageSend(
-			m.ChannelID,
-			fmt.Sprintf(
-				"%s slap themselves around with a target-string that does not look like a mention "+
-					"and %s %s trout",
-				m.Author.Username, det, adj,
-			),
-		)
-		err = fmt.Errorf("invalid target string: %s", target)
-		return
-	}
-
-	user, err = s.User(target[startIndex : len(target)-1])
+	targetSnowflake, err := discord.ParseSnowflake(targetID)
 	if err != nil {
-		reply, discErr = s.ChannelMessageSend(
-			m.ChannelID,
-			fmt.Sprintf(
-				"%s slap themselves around with a target-string that failed resolving "+
-					"and %s %s trout",
-				m.Author.Username, det, adj,
-			),
-		)
-		err = fmt.Errorf("error getting user when using target string: %v", err)
+		err = fmt.Errorf("error parsing target ID: %v", err)
 		return
 	}
 
-	if user.Bot {
-		if reason != "" {
-			reason = "because they are trying to be smart"
-		}
-		reply, discErr = s.ChannelMessageSend(
-			m.ChannelID,
-			fmt.Sprintf(
-				"%s makes %s slap themselves around with %s %s trout %s",
-				user.Username, m.Author.Mention(), det, adj, reason,
-			),
-		)
-		return
-	}
-
-	reply, discErr = s.ChannelMessageSend(
-		m.ChannelID,
-		fmt.Sprintf(
+	response = &api.InteractionResponseData{
+		Content: fmt.Sprintf(
 			"%s slaps %s around with %s %s trout %s",
-			m.Author.Username, user.Mention(), det, adj, reason,
+			author.Username, discord.UserID(targetSnowflake).Mention(), det, adj, reason,
 		),
-	)
+	}
 
 	return
 }
