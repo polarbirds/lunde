@@ -140,8 +140,8 @@ func (srv *Server) Initialize(s *session.Session) error {
 // MessageCreateHandler handles every incoming normal message
 func (srv *Server) MessageCreateHandler(c *gateway.MessageCreateEvent) {
 	srv.lastMessageWriteMutex.Lock()
-
 	srv.lastMessages[c.ChannelID] = c
+	srv.lastMessageWriteMutex.Unlock()
 
 	if strings.Contains(c.Content, "69") {
 		var emojiAPIString discord.APIEmoji = "nice:536833842078810112"
@@ -153,8 +153,6 @@ func (srv *Server) MessageCreateHandler(c *gateway.MessageCreateEvent) {
 			logrus.Errorf("error occurred adding reaction: %v", err)
 		}
 	}
-
-	srv.lastMessageWriteMutex.Unlock()
 }
 
 //revive:disable-next-line:cyclomatic
