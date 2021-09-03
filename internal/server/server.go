@@ -172,8 +172,12 @@ func (srv *Server) HandleInteraction(ev *gateway.InteractionCreateEvent) {
 		}
 
 		if isNSFW && !recChan.NSFW {
+			nick := ev.Member.Nick
+			if nick == "" {
+				nick = ev.Member.User.Username
+			}
 			response = &api.InteractionResponseData{
-				Content: fmt.Sprintf("this is a christian channel, %s", ev.Member.Nick),
+				Content: fmt.Sprintf("this is a christian channel, %s", nick),
 			}
 		}
 	case "define":
