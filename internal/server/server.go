@@ -153,13 +153,28 @@ func (srv *Server) HandleInteraction(ev *gateway.InteractionCreateEvent) {
 	var err error
 	options := opsToMap(ev.Data.Options)
 
-	logrus.Infof("%+v", ev)
+	logrus.Debugf("event received: %+v", ev)
 
 	switch ev.Data.Name {
 	case "reddit":
-		response, err = reddit.HandleReddit(options["sort"], options["sub"])
+		var isNSFW bool
+		response, isNSFW, err = reddit.HandleReddit(options["sort"], options["sub"])
 		if err != nil {
 			err = fmt.Errorf("error handling /reddit: %v", err)
+			break
+		}
+
+		var recChan *discord.Channel
+		recChan, err = srv.sess.Channel(ev.ChannelID)
+		if err != nil {
+			err = fmt.Errorf("error when getting channel when handling /reddit: %v", err)
+			break
+		}
+
+		if isNSFW && !recChan.NSFW {
+			response = &api.InteractionResponseData{
+				Content: fmt.Sprintf("this is a christian channel, %s", ev.Member.Nick),
+			}
 		}
 	case "define":
 		response, err = define.HandleDefine(options["term"])

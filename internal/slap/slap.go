@@ -52,8 +52,6 @@ func HandleSlap(author discord.User, targetID string, reason string) (
 		return
 	}
 
-	// logrus.Info(det, adj, target, reason, author)
-
 	response = &api.InteractionResponseData{
 		Content: fmt.Sprintf(
 			"%s slaps %s around with %s %s trout %s",

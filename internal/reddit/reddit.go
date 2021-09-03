@@ -91,7 +91,9 @@ func CommandData() api.CreateCommandData {
 }
 
 // HandleReddit fetches a post from reddit from the given parameters
-func HandleReddit(sort string, sub string) (response *api.InteractionResponseData, err error) {
+func HandleReddit(sort string, sub string) (
+	response *api.InteractionResponseData, isNSFW bool, err error,
+) {
 	var resp *geddit.Submission
 	var subreddit string
 	nrPost := 1
@@ -116,12 +118,14 @@ func HandleReddit(sort string, sub string) (response *api.InteractionResponseDat
 		return
 	}
 
+	isNSFW = resp.IsNSFW
+
 	response = &api.InteractionResponseData{}
 	if strings.HasSuffix(resp.URL, resp.Permalink) || isEmbeddable(resp.URL) {
 		response.Embeds = []discord.Embed{embedMessage(resp)}
 	} else {
-		title := fmt.Sprintf("*%s on %s*: <https://reddit.com%s>\n%s", resp.Author,
-			utcToTimeStamp(int64(resp.DateCreated)), resp.Permalink, resp.Title)
+		title := fmt.Sprintf("*%s on %s*: <https://reddit.com%s>\n%s",
+			resp.Author, utcToTimeStamp(int64(resp.DateCreated)), resp.Permalink, resp.Title)
 		var messageBody string
 		if resp.Selftext != "" {
 			messageBody = fmt.Sprintf("%s\n%s", resp.Selftext, resp.URL)
@@ -130,8 +134,6 @@ func HandleReddit(sort string, sub string) (response *api.InteractionResponseDat
 		}
 		response.Content = fmt.Sprintf("%s\n%s\n⬆%v", title, messageBody, resp.Ups)
 	}
-
-	// msg.NSFW = resp.IsNSFW
 
 	return
 }
