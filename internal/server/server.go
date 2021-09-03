@@ -3,6 +3,7 @@ package server
 import (
 	"errors"
 	"fmt"
+	"math/rand"
 	"strconv"
 	"strings"
 	"sync"
@@ -141,6 +142,17 @@ func (srv *Server) MessageCreateHandler(c *gateway.MessageCreateEvent) {
 	srv.lastMessageWriteMutex.Lock()
 
 	srv.lastMessages[c.ChannelID] = c
+
+	if strings.Contains(c.Content, "69") {
+		var emojiAPIString discord.APIEmoji = "nice:536833842078810112"
+		if rand.Intn(2) == 1 {
+			emojiAPIString = "♋"
+		}
+		err := srv.sess.React(c.ChannelID, c.ID, emojiAPIString)
+		if err != nil {
+			logrus.Errorf("error occurred adding reaction: %v", err)
+		}
+	}
 
 	srv.lastMessageWriteMutex.Unlock()
 }
