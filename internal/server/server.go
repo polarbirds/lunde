@@ -306,3 +306,24 @@ func opsToMap(ops []gateway.InteractionOption) (opMap map[string]string) {
 
 	return
 }
+
+// DeleteGuildCommands deletes all guild commands for the configured guild and app ID
+func (srv *Server) DeleteGuildCommands() error {
+	cmds, err := srv.sess.GuildCommands(srv.appIDSnowFlake, srv.guildIDSnowFlake)
+	if err != nil {
+		return fmt.Errorf("fetching existing commands: %v", err)
+	}
+
+	for i, cmd := range cmds {
+		err = srv.sess.DeleteGuildCommand(
+			cmd.AppID,
+			srv.guildIDSnowFlake,
+			cmd.ID)
+		if err != nil {
+			return fmt.Errorf("deleting command %s: %v", cmd.Name, err)
+		}
+		logrus.Infof("deleted guild command (%d/%d) %q", i+1, len(cmds), cmd.Name)
+	}
+
+	return nil
+}
