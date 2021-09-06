@@ -1,6 +1,7 @@
 package main
 
 import (
+	"flag"
 	"os"
 	"os/signal"
 	"syscall"
@@ -48,6 +49,23 @@ func main() {
 	if err != nil {
 		logrus.Fatalf("error initializing server: %v", err)
 		return
+	}
+
+	deletecommands := flag.Bool(
+		"deletecommands",
+		false,
+		"if true, the program will delete all guild commands on startup, and then exit")
+
+	flag.Parse()
+	if deletecommands != nil && *deletecommands {
+		logrus.Info("deletecommands flag detected, deleting guild commands...")
+		err = srv.DeleteGuildCommands()
+		if err != nil {
+			logrus.Fatalf("error deleting commands: %v", err)
+		}
+
+		logrus.Info("deleted commands, exiting...")
+		os.Exit(0)
 	}
 
 	logrus.Info("Bot is now running.  Press CTRL-C to exit.")

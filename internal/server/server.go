@@ -4,6 +4,8 @@ import (
 	"errors"
 	"fmt"
 	"math/rand"
+	"reflect"
+	"regexp"
 	"strconv"
 	"strings"
 	"sync"
@@ -20,6 +22,8 @@ import (
 	"github.com/polarbirds/lunde/internal/text"
 	"github.com/sirupsen/logrus"
 )
+
+var nicePattern = regexp.MustCompile("(^|\\D)69(\\D|$)")
 
 // Server is the config and main server
 type Server struct {
@@ -81,7 +85,17 @@ func New() (srv Server, err error) {
 	return
 }
 
-// Initialize the server with the given session. May panic if given session is nil
+func removeCommandFromSlice(s []discord.Command, i int) []discord.Command {
+	if len(s) <= 1 {
+		return []discord.Command{}
+	}
+
+	s[i] = s[len(s)-1]
+	return s[:len(s)-1]
+}
+
+//revive:disable-next-line:cyclomatic
+// Initialize the server with the given session
 func (srv *Server) Initialize(s *session.Session) error {
 	srv.sess = s
 
@@ -100,21 +114,7 @@ func (srv *Server) Initialize(s *session.Session) error {
 		return fmt.Errorf("error fetching existing commands: %v", err)
 	}
 
-	logrus.Infof("deleting %d guild commands...", len(existingCmds))
-	for i, cmd := range existingCmds {
-		logrus.Infof("deleting guild command (%d/%d) %q", i+1, len(existingCmds), cmd.Name)
-		err := srv.sess.DeleteGuildCommand(
-			cmd.AppID,
-			srv.guildIDSnowFlake,
-			cmd.ID)
-		if err != nil {
-			return fmt.Errorf("error occurred deleting guild command %q: %v", cmd.Name, err)
-		}
-	}
-
-	logrus.Infof("deleted %d guild commands", len(existingCmds))
-
-	cmds := []api.CreateCommandData{
+	newCMDs := []api.CreateCommandData{
 		reddit.CommandData(),
 		define.CommandData(),
 		slap.CommandData(),
@@ -122,9 +122,41 @@ func (srv *Server) Initialize(s *session.Session) error {
 		remind.CommandData(),
 	}
 
-	logrus.Infof("creating %d guild commands...", len(cmds))
-	for i, cmdData := range cmds {
-		logrus.Infof("creating guild command (%d/%d) %q", i+1, len(cmds), cmdData.Name)
+	existingCommandsEdited := 0
+
+	logrus.Infof("creating %d guild commands...", len(newCMDs))
+	for i, cmdData := range newCMDs {
+		foundIndex := -1
+		for existingIndex, existingCommand := range existingCmds {
+			if existingCommand.Name == cmdData.Name {
+				foundIndex = existingIndex
+				break
+			}
+		}
+
+		if foundIndex > -1 {
+			existingCommand := existingCmds[foundIndex]
+			if cmdData.Description == existingCommand.Description &&
+				reflect.DeepEqual(cmdData.Options, existingCommand.Options) {
+				logrus.Infof("(%d/%d) existing guild command unchanged: %q",
+					i+1, len(newCMDs), cmdData.Name)
+			} else {
+				_, err := srv.sess.EditGuildCommand(
+					srv.appIDSnowFlake, srv.guildIDSnowFlake, existingCommand.ID, cmdData)
+				if err != nil {
+					return fmt.Errorf("error occurred editing existing guild command %q: %v",
+						cmdData.Name, err)
+				}
+				logrus.Infof("(%d/%d) edited existing guild command %q",
+					i+1, len(newCMDs), cmdData.Name)
+			}
+
+			existingCommandsEdited++
+			existingCmds = removeCommandFromSlice(existingCmds, foundIndex)
+			continue
+		}
+
+		logrus.Infof("creating guild command (%d/%d) %q", i+1, len(newCMDs), cmdData.Name)
 		_, err := srv.sess.CreateGuildCommand(
 			srv.appIDSnowFlake,
 			srv.guildIDSnowFlake,
@@ -134,6 +166,21 @@ func (srv *Server) Initialize(s *session.Session) error {
 		}
 	}
 
+	if len(existingCmds) > 0 {
+		logrus.Infof("deleting %d guild commands...", len(existingCmds))
+		for i, cmd := range existingCmds {
+			logrus.Infof("deleting guild command (%d/%d) %q", i+1, len(existingCmds), cmd.Name)
+			err := srv.sess.DeleteGuildCommand(
+				cmd.AppID,
+				srv.guildIDSnowFlake,
+				cmd.ID)
+			if err != nil {
+				return fmt.Errorf("error occurred deleting guild command %q: %v", cmd.Name, err)
+			}
+		}
+
+		logrus.Infof("deleted %d guild commands", len(existingCmds))
+	}
 	return nil
 }
 
@@ -143,7 +190,7 @@ func (srv *Server) MessageCreateHandler(c *gateway.MessageCreateEvent) {
 	srv.lastMessages[c.ChannelID] = c
 	srv.lastMessageWriteMutex.Unlock()
 
-	if strings.Contains(c.Content, "69") {
+	if nicePattern.Match([]byte(c.Content)) {
 		var emojiAPIString discord.APIEmoji = "nice:536833842078810112"
 		if rand.Intn(2) == 1 {
 			emojiAPIString = "♋"
@@ -258,4 +305,25 @@ func opsToMap(ops []gateway.InteractionOption) (opMap map[string]string) {
 	}
 
 	return
+}
+
+// DeleteGuildCommands deletes all guild commands for the configured guild and app ID
+func (srv *Server) DeleteGuildCommands() error {
+	cmds, err := srv.sess.GuildCommands(srv.appIDSnowFlake, srv.guildIDSnowFlake)
+	if err != nil {
+		return fmt.Errorf("fetching existing commands: %v", err)
+	}
+
+	for i, cmd := range cmds {
+		err = srv.sess.DeleteGuildCommand(
+			cmd.AppID,
+			srv.guildIDSnowFlake,
+			cmd.ID)
+		if err != nil {
+			return fmt.Errorf("deleting command %s: %v", cmd.Name, err)
+		}
+		logrus.Infof("deleted guild command (%d/%d) %q", i+1, len(cmds), cmd.Name)
+	}
+
+	return nil
 }

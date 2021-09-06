@@ -8,6 +8,10 @@ run: build
 	CONFIG="file::./dev_cfg/cfg.yml" \
 	./bin/lunde
 
+deletecommands: build
+	CONFIG="file::./dev_cfg/cfg.yml" \
+	./bin/lunde -deletecommands
+
 watch:
 	reflex --start-service=true -r '\.go$$' make run
 
