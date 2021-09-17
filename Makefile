@@ -1,6 +1,10 @@
 #!make
 include envfile
 
+TOKEN := $(shell cat ./dev_cfg/token.txt)
+APPID := $(shell cat ./dev_cfg/appid.txt)
+GUILDID := $(shell cat ./dev_cfg/guildid.txt)
+
 # This version-strategy uses git tags to set the version string
 VERSION := $(shell git describe --tags --always --dirty)
 
@@ -31,8 +35,6 @@ ifeq ($(ARCH),ppc64le)
 endif
 
 IMAGE := $(REGISTRY)/$(BIN)
-
-BUILD_IMAGE ?= golang:1.11-alpine
 
 # If you want to build all binaries, see the 'all-build' rule.
 # If you want to build all containers, see the 'all-container' rule.
@@ -87,11 +89,18 @@ push-name:
 	@echo "pushed: $(IMAGE):$(VERSION)"
 
 run: build # make ARGS="hello these are my args" run
-	CONFIG="file::./dev_cfg/local-cfg.yml" \
+	TOKEN=${TOKEN} \
+	APPID=${APPID} \
+	GUILDID=${GUILDID} \
+	DISABLE_HEALTH=true \
 	./bin/$(ARCH)/$(BIN) ${ARGS}
 
 run-container: container
-	docker run -v "$(PWD)/dev_cfg:/cfg" -e CONFIG=file::/cfg/cfg.yml ${IMAGE}:${VERSION}
+	docker run \
+		-e TOKEN=$(TOKEN) \
+		-e APPID=${APPID} \
+		-e GUILDID=${GUILDID} \
+	 	${IMAGE}:${VERSION}
 
 version:
 	@echo $(VERSION)
@@ -133,4 +142,5 @@ bin-clean:
 	rm -rf .go bin
 
 azure-deploy: push
-	az container create --resource-group lunde-rsc --name lunde --image ${IMAGE}:${VERSION}
+	az container create --resource-group lunde-rsc --name lunde \
+		--secure-environment-variables "TOKEN=$(TOKEN) APPID=$(APPID) GUILDID=$(GUILDID)" --image ${IMAGE}:${VERSION}

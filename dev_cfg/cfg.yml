@@ -1,7 +1,0 @@
-disableHealth: false
-
-token: file::/cfg/token.txt
-appID: file::/cfg/appid.txt
-guildID: file::/cfg/guildid.txt
-
-remindsFilePath: /cfg/reminds.json
