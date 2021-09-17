@@ -140,6 +140,13 @@ container-clean:
 
 bin-clean:
 	rm -rf .go bin
+	
+watch:
+	reflex --start-service=true -r '(\.go)|(cfg.yml)$$' make run
+
+watch-tests: watch-test
+watch-test:
+	reflex -r '\.go$$' make test
 
 azure-deploy: push
 	az container create --resource-group lunde-rsc --name lunde \
