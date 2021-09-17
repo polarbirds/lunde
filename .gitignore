@@ -1,5 +1,6 @@
 .idea
 vendor/
+.vscode
 
 reminds.json
 
@@ -11,3 +12,9 @@ token*.txt
 appid*.txt
 guildid.txt
 bin/
+
+bin/
+/.go
+/.push-*
+/.container-*
+/.dockerfile-*

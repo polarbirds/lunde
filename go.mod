@@ -1,7 +1,5 @@
 module github.com/polarbirds/lunde
 
-go 1.12
-
 require (
 	github.com/beefsack/go-rate v0.0.0-20180408011153-efa7637bb9b6 // indirect
 	github.com/diamondburned/arikawa/v2 v2.0.4
@@ -22,3 +20,5 @@ require (
 	gopkg.in/check.v1 v1.0.0-20190902080502-41f04d3bba15 // indirect
 	gopkg.in/yaml.v2 v2.3.0 // indirect
 )
+
+go 1.16

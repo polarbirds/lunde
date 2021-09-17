@@ -1,5 +1,0 @@
-token: file::dev_cfg/token.txt
-appID: file::dev_cfg/appid.txt
-guildID: file::dev_cfg/guildid.txt
-
-remindsFilePath: ./reminds.json
