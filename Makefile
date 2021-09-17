@@ -111,8 +111,10 @@ install-tools:
 env:
 	env
 
+fmt:
+	goimports -w $(SRC_DIRS)
+
 test: build-dirs
-	AP_CFG="file::../../../testdata/cfg.yml" \
 	./build/test.sh $(SRC_DIRS)
 
 lint: lint-all
