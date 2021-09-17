@@ -19,8 +19,9 @@ import (
 
 // Reminder represents a Reminder process object
 type Reminder struct {
-	DiscordSession *session.Session
-	tasks          []task
+	RemindsFilePath string
+	DiscordSession  *session.Session
+	tasks           []task
 }
 
 type task struct {
@@ -62,15 +63,18 @@ func CommandData() api.CreateCommandData {
 // CreateRemindStrict creates a remind-task
 func (r *Reminder) CreateRemindStrict(
 	timeStr string, message string, channelID discord.ChannelID,
-) error {
+) (*api.InteractionResponseData, error) {
 	task, err := r.createRemind(timeStr, message, channelID)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	r.tasks = append(r.tasks, task)
 	go r.saveTasks()
-	return nil
+
+	return &api.InteractionResponseData{
+		Content: "👍",
+	}, nil
 }
 
 func (r *Reminder) createRemind(
@@ -147,7 +151,7 @@ func (r *Reminder) saveTasks() {
 	if err != nil {
 		logrus.Error(err)
 	}
-	err = ioutil.WriteFile("reminds.json", dat, 0x600)
+	err = ioutil.WriteFile(r.RemindsFilePath, dat, 0x600)
 	if err != nil {
 		logrus.Error(err)
 	}
@@ -184,14 +188,14 @@ func (r *Reminder) queueRemind(t task) {
 
 // Start reads the reminds-file and queues all persisted reminds
 func (r *Reminder) Start() (err error) {
-	_, err = os.Stat("reminds.json")
+	_, err = os.Stat(r.RemindsFilePath)
 	if os.IsNotExist(err) {
-		logrus.Info("file reminds.json not found, starting anew!")
+		logrus.Infof("file %s not found, starting anew!", r.RemindsFilePath)
 		// cancel reading reminds file. It did not exists
 		return
 	}
 
-	dat, err := ioutil.ReadFile("reminds.json")
+	dat, err := ioutil.ReadFile(r.RemindsFilePath)
 	if err != nil {
 		return
 	}

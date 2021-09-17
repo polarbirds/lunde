@@ -100,7 +100,8 @@ func (srv *Server) Initialize(s *session.Session) error {
 	srv.sess = s
 
 	rmd := remind.Reminder{
-		DiscordSession: s,
+		DiscordSession:  s,
+		RemindsFilePath: srv.RemindsFilePath,
 	}
 
 	err := rmd.Start()
@@ -211,6 +212,7 @@ func (srv *Server) HandleInteraction(ev *gateway.InteractionCreateEvent) {
 
 	logrus.Debugf("event received: %+v", ev)
 
+	log := logrus.WithField("command", ev.Data.Name)
 	switch ev.Data.Name {
 	case "reddit":
 		var isNSFW bool
@@ -271,7 +273,7 @@ func (srv *Server) HandleInteraction(ev *gateway.InteractionCreateEvent) {
 				chanID = discord.ChannelID(sf)
 			}
 		}
-		err = srv.reminder.CreateRemindStrict(options["when"], options["message"], chanID)
+		response, err = srv.reminder.CreateRemindStrict(options["when"], options["message"], chanID)
 		if err != nil {
 			err = fmt.Errorf("error handling /remind: %v", err)
 		}
@@ -288,7 +290,7 @@ func (srv *Server) HandleInteraction(ev *gateway.InteractionCreateEvent) {
 	}
 
 	if err != nil {
-		logrus.Warn(err)
+		log.Warnf("error occurred: %v", err)
 		dm, dmErr := srv.sess.CreatePrivateChannel(ev.Member.User.ID)
 		if dmErr != nil {
 			logrus.Errorf("error occurred sending DM with prev error: %v", dmErr)

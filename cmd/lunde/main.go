@@ -8,6 +8,7 @@ import (
 
 	"github.com/diamondburned/arikawa/v2/gateway"
 	"github.com/diamondburned/arikawa/v2/session"
+	"github.com/polarbirds/lunde/internal/healthcheck"
 	"github.com/polarbirds/lunde/internal/server"
 	"github.com/sirupsen/logrus"
 )
@@ -19,7 +20,7 @@ func main() {
 		logrus.Fatal(err)
 	}
 
-	logrus.Info("creating sessions")
+	logrus.Info("creating discord session")
 	sess, err := session.New("Bot " + srv.Token)
 	if err != nil {
 		logrus.Fatalf("error creating Discord session: %v", err)
@@ -35,7 +36,7 @@ func main() {
 	sess.Gateway.AddIntents(gateway.IntentGuildMessages)
 	sess.Gateway.AddIntents(gateway.IntentGuildMessageReactions)
 
-	logrus.Info("opening session with discord")
+	logrus.Info("opening discord session")
 	err = sess.Open()
 	if err != nil {
 		logrus.Fatalf("error opening connection: %v", err)
@@ -67,6 +68,8 @@ func main() {
 		logrus.Info("deleted commands, exiting...")
 		os.Exit(0)
 	}
+
+	go healthcheck.StartHandlerIfEnabled()
 
 	logrus.Info("Bot is now running.  Press CTRL-C to exit.")
 	sc := make(chan os.Signal, 1)

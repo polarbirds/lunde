@@ -9,4 +9,5 @@ GO111MODULE=off go get github.com/mgechev/revive
 echo "Installing reflex"
 GO111MODULE=off go get github.com/cespare/reflex
 
-echo "Done!"
+echo "Installing goimports"
+GO111MODULE=off go get golang.org/x/tools/cmd/goimports
