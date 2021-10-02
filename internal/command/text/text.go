@@ -7,9 +7,11 @@ import (
 	"math/rand"
 	"regexp"
 	"strings"
+	"unicode"
 
-	"github.com/diamondburned/arikawa/v2/api"
-	"github.com/diamondburned/arikawa/v2/discord"
+	"github.com/diamondburned/arikawa/v3/api"
+	"github.com/diamondburned/arikawa/v3/discord"
+	"github.com/diamondburned/arikawa/v3/utils/json/option"
 	"github.com/kortschak/zalgo"
 )
 
@@ -51,7 +53,7 @@ func HandleText(
 	}
 
 	return &api.InteractionResponseData{
-		Content: convert(message, algo),
+		Content: option.NewNullableString(convert(message, algo)),
 	}, nil
 }
 
@@ -86,21 +88,21 @@ func zalgoPlz(content string) string {
 }
 
 func spungePlz(content string) string {
-	content = strings.ToLower(content)
+	contentRunes := []rune(strings.ToLower(content))
 	lastCharConverted := false
-	for i, c := range content {
+	for i, c := range contentRunes {
 		setSize := 2
 		if lastCharConverted {
 			setSize = 3
 		}
 		if rand.Intn(setSize) == 0 {
-			content = content[:i] + strings.ToUpper(string(c)) + content[i+1:]
+			contentRunes[i] = unicode.ToUpper(c)
 			lastCharConverted = true
 		} else {
 			lastCharConverted = false
 		}
 	}
-	return content
+	return string(contentRunes)
 }
 
 var chiresePattern = regexp.MustCompile("asd")

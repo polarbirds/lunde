@@ -1,13 +1,14 @@
 package main
 
 import (
+	"context"
 	"flag"
 	"os"
 	"os/signal"
 	"syscall"
 
-	"github.com/diamondburned/arikawa/v2/gateway"
-	"github.com/diamondburned/arikawa/v2/session"
+	"github.com/diamondburned/arikawa/v3/gateway"
+	"github.com/diamondburned/arikawa/v3/session"
 	"github.com/polarbirds/lunde/internal/healthcheck"
 	"github.com/polarbirds/lunde/internal/server"
 	"github.com/sirupsen/logrus"
@@ -29,15 +30,16 @@ func main() {
 
 	logrus.Info("adding handlers and intents")
 	sess.AddHandler(srv.MessageCreateHandler)
-
-	sess.AddHandler(srv.HandleInteraction)
+	sess.AddHandler(srv.HandleCommandInteraction)
+	sess.AddHandler(srv.HandleComponentInteraction)
 
 	sess.Gateway.AddIntents(gateway.IntentGuilds)
 	sess.Gateway.AddIntents(gateway.IntentGuildMessages)
 	sess.Gateway.AddIntents(gateway.IntentGuildMessageReactions)
+	sess.Gateway.AddIntents(gateway.IntentDirectMessages)
 
 	logrus.Info("opening discord session")
-	err = sess.Open()
+	err = sess.Open(context.Background())
 	if err != nil {
 		logrus.Fatalf("error opening connection: %v", err)
 		return

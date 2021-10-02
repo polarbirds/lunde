@@ -8,8 +8,9 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/diamondburned/arikawa/v2/api"
-	"github.com/diamondburned/arikawa/v2/discord"
+	"github.com/diamondburned/arikawa/v3/api"
+	"github.com/diamondburned/arikawa/v3/discord"
+	"github.com/diamondburned/arikawa/v3/utils/json/option"
 	"github.com/jmcvetta/randutil"
 )
 
@@ -53,9 +54,9 @@ func HandleSlap(author discord.User, targetID string, reason string) (
 	}
 
 	response = &api.InteractionResponseData{
-		Content: fmt.Sprintf(
+		Content: option.NewNullableString(fmt.Sprintf(
 			"%s slaps %s around with %s %s trout %s",
-			author.Username, discord.UserID(targetSnowflake).Mention(), det, adj, reason,
+			author.Username, discord.UserID(targetSnowflake).Mention(), det, adj, reason),
 		),
 	}
 

@@ -8,8 +8,9 @@ import (
 	"net/url"
 	"strings"
 
-	"github.com/diamondburned/arikawa/v2/api"
-	"github.com/diamondburned/arikawa/v2/discord"
+	"github.com/diamondburned/arikawa/v3/api"
+	"github.com/diamondburned/arikawa/v3/discord"
+	"github.com/diamondburned/arikawa/v3/utils/json/option"
 )
 
 type ubResponse struct {
@@ -80,7 +81,7 @@ func HandleDefine(term string) (reply *api.InteractionResponseData, err error) {
 	}
 
 	reply = &api.InteractionResponseData{
-		Content: replyContent,
+		Content: option.NewNullableString(replyContent),
 	}
 
 	return

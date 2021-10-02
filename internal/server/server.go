@@ -11,14 +11,15 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/diamondburned/arikawa/v2/api"
-	"github.com/diamondburned/arikawa/v2/discord"
-	"github.com/diamondburned/arikawa/v2/gateway"
-	"github.com/diamondburned/arikawa/v2/session"
-	"github.com/polarbirds/lunde/internal/define"
-	"github.com/polarbirds/lunde/internal/reddit"
-	"github.com/polarbirds/lunde/internal/slap"
-	"github.com/polarbirds/lunde/internal/text"
+	"github.com/diamondburned/arikawa/v3/api"
+	"github.com/diamondburned/arikawa/v3/discord"
+	"github.com/diamondburned/arikawa/v3/gateway"
+	"github.com/diamondburned/arikawa/v3/session"
+	"github.com/diamondburned/arikawa/v3/utils/json/option"
+	"github.com/polarbirds/lunde/internal/command/define"
+	"github.com/polarbirds/lunde/internal/command/reddit"
+	"github.com/polarbirds/lunde/internal/command/slap"
+	"github.com/polarbirds/lunde/internal/command/text"
 	"github.com/sirupsen/logrus"
 )
 
@@ -95,6 +96,10 @@ func (srv *Server) Initialize(s *session.Session) error {
 		define.CommandData(),
 		slap.CommandData(),
 		text.CommandData(),
+		{
+			Name:        "test",
+			Description: "test stuff",
+		},
 	}
 
 	existingCommandsEdited := 0
@@ -177,17 +182,51 @@ func (srv *Server) MessageCreateHandler(c *gateway.MessageCreateEvent) {
 	}
 }
 
+// HandleComponentInteraction handles component interactions, e.g. button-presses
+func (srv *Server) HandleComponentInteraction(ev *gateway.InteractionCreateEvent) {
+	if ev.Interaction.Type != discord.ComponentInteraction {
+		return
+	}
+
+	inter := ev.Data.(*discord.ComponentInteractionData)
+
+	dm, err := srv.sess.CreatePrivateChannel(ev.Member.User.ID)
+	if err != nil {
+		logrus.Errorf("error occurred sending DM: %v", err)
+	} else {
+		srv.sess.SendMessage(
+			dm.ID, fmt.Sprintf("you pressed the button with the custom ID: %s", inter.CustomID))
+	}
+
+	if err := srv.sess.RespondInteraction(ev.ID, ev.Token, api.InteractionResponse{
+		Type: api.DeferredMessageUpdate,
+	}); err != nil {
+		logrus.Errorf("failed to send interaction callback: %v", err)
+	}
+
+	logrus.Infof("component interaction detected by %s: %s", ev.Member.Nick, inter.CustomID)
+}
+
 //revive:disable-next-line:cyclomatic
-// HandleInteraction is a handler-function handling interaction-events
-func (srv *Server) HandleInteraction(ev *gateway.InteractionCreateEvent) {
+// HandleCommandInteraction is a handler-function handling interaction-events
+func (srv *Server) HandleCommandInteraction(ev *gateway.InteractionCreateEvent) {
 	var response *api.InteractionResponseData
 	var err error
-	options := opsToMap(ev.Data.Options)
 
-	logrus.Debugf("event received: %+v", ev)
+	if ev.Interaction.Type != discord.CommandInteraction {
+		return
+	}
 
-	log := logrus.WithField("command", ev.Data.Name)
-	switch ev.Data.Name {
+	defer srv.handleResponse(&response, ev, &err)
+
+	inter := ev.Data.(*discord.CommandInteractionData)
+	options, err := opsToMap(inter.Options)
+	if err != nil {
+		err = fmt.Errorf("error occurred converting ops to a map: %v", err)
+		return
+	}
+
+	switch inter.Name {
 	case "reddit":
 		var isNSFW bool
 		response, isNSFW, err = reddit.HandleReddit(options["sort"], options["sub"])
@@ -209,7 +248,8 @@ func (srv *Server) HandleInteraction(ev *gateway.InteractionCreateEvent) {
 				nick = ev.Member.User.Username
 			}
 			response = &api.InteractionResponseData{
-				Content: fmt.Sprintf("this is a christian channel, %s", nick),
+				Content: option.NewNullableString(
+					fmt.Sprintf("this is a christian channel, %s", nick)),
 			}
 		}
 	case "define":
@@ -236,7 +276,56 @@ func (srv *Server) HandleInteraction(ev *gateway.InteractionCreateEvent) {
 		if err != nil {
 			err = fmt.Errorf("error handling /text: %v", err)
 		}
+	case "test":
+		response = &api.InteractionResponseData{
+			Content: option.NewNullableString("BOIS WE HAVE BUTTS!"),
+			Components: &[]discord.Component{
+				&discord.ActionRowComponent{
+					Components: []discord.Component{
+						&discord.ButtonComponent{
+							Label:    "First BUTT!",
+							CustomID: "first_button",
+							Emoji: &discord.ButtonEmoji{
+								Name: "👋",
+							},
+							Style: discord.PrimaryButton,
+						},
+						&discord.ButtonComponent{
+							Label:    "Second BUTT",
+							CustomID: "second_button",
+							Style:    discord.SecondaryButton,
+						},
+						&discord.ButtonComponent{
+							Label:    "Success BUTT",
+							CustomID: "success_button",
+							Style:    discord.SuccessButton,
+						},
+						&discord.ButtonComponent{
+							Label:    "DANGER BUTT",
+							CustomID: "danger_button",
+							Style:    discord.DangerButton,
+						},
+						&discord.ButtonComponent{
+							Label: "Butts-BUTT",
+							URL:   "https://reddit.com/r/corgibutts",
+							Style: discord.LinkButton,
+						},
+					},
+				},
+			},
+		}
 	}
+}
+
+func (srv *Server) handleResponse(
+	presponse **api.InteractionResponseData,
+	ev *gateway.InteractionCreateEvent,
+	perr *error,
+) {
+	if presponse == nil {
+		return
+	}
+	response := *presponse
 
 	if response != nil {
 		data := api.InteractionResponse{
@@ -248,21 +337,29 @@ func (srv *Server) HandleInteraction(ev *gateway.InteractionCreateEvent) {
 		}
 	}
 
-	if err != nil {
-		log.Warnf("error occurred: %v", err)
+	if perr != nil && *perr != nil {
+		err := *perr
+		logrus.Warnf("error occurred: %v", err)
 		dm, dmErr := srv.sess.CreatePrivateChannel(ev.Member.User.ID)
 		if dmErr != nil {
 			logrus.Errorf("error occurred sending DM with prev error: %v", dmErr)
 		} else {
-			srv.sess.SendText(dm.ID, err.Error())
+			srv.sess.SendMessage(dm.ID, err.Error())
 		}
 	}
 }
 
-func opsToMap(ops []gateway.InteractionOption) (opMap map[string]string) {
+func opsToMap(ops []discord.InteractionOption) (opMap map[string]string, err error) {
 	opMap = make(map[string]string)
 	for _, op := range ops {
-		opMap[op.Name] = op.Value
+		var val string
+		err = op.Value.UnmarshalTo(&val)
+		if err != nil {
+			err = fmt.Errorf("unmarshalling op by name %q to string, value was: %v",
+				op.Name, op.Value)
+			return
+		}
+		opMap[op.Name] = string(val)
 	}
 
 	return

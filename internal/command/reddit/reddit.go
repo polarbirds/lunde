@@ -9,8 +9,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/diamondburned/arikawa/v2/api"
-	"github.com/diamondburned/arikawa/v2/discord"
+	"github.com/diamondburned/arikawa/v3/api"
+	"github.com/diamondburned/arikawa/v3/discord"
+	"github.com/diamondburned/arikawa/v3/utils/json/option"
 	"github.com/google/go-querystring/query"
 	"github.com/jzelinskie/geddit"
 )
@@ -122,7 +123,7 @@ func HandleReddit(sort string, sub string) (
 
 	response = &api.InteractionResponseData{}
 	if strings.HasSuffix(resp.URL, resp.Permalink) || isEmbeddable(resp.URL) {
-		response.Embeds = []discord.Embed{embedMessage(resp)}
+		response.Embeds = &[]discord.Embed{embedMessage(resp)}
 	} else {
 		title := fmt.Sprintf("*%s on %s*: <https://reddit.com%s>\n%s",
 			resp.Author, utcToTimeStamp(int64(resp.DateCreated)), resp.Permalink, resp.Title)
@@ -132,7 +133,8 @@ func HandleReddit(sort string, sub string) (
 		} else {
 			messageBody = resp.URL
 		}
-		response.Content = fmt.Sprintf("%s\n%s\n⬆%v", title, messageBody, resp.Ups)
+		response.Content = option.NewNullableString(
+			fmt.Sprintf("%s\n%s\n⬆%v", title, messageBody, resp.Ups))
 	}
 
 	return

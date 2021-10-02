@@ -128,8 +128,9 @@ lint-changed:
 lint-staged:
 	revive -config revive.toml -formatter friendly -exclude vendor/... $(STAGED_GO_FILES)
 
+mod: mods
 mods:
-	GO111MODULE=on go mod verify
+	./build/mod.sh
 
 build-dirs:
 	@mkdir -p bin/$(ARCH)
