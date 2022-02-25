@@ -9,19 +9,54 @@ import (
 	"strings"
 	"time"
 
-	"github.com/diamondburned/arikawa/v2/api"
-	"github.com/diamondburned/arikawa/v2/discord"
+	"github.com/diamondburned/arikawa/v3/api"
+	"github.com/diamondburned/arikawa/v3/discord"
+	"github.com/diamondburned/arikawa/v3/gateway"
+	"github.com/diamondburned/arikawa/v3/session"
+	"github.com/diamondburned/arikawa/v3/utils/json/option"
 	"github.com/google/go-querystring/query"
 	"github.com/jzelinskie/geddit"
+	"github.com/polarbirds/lunde/internal/command"
+	"github.com/polarbirds/lunde/internal/server"
 )
 
-var (
-	imgSuffixes = []string{
-		"jpg",
-		"png",
-		"gif",
+type redditHandler struct {
+	session *session.Session
+}
+
+// CreateCommand creates a LundeCommand which handles /reddit
+func CreateCommand(srv *server.Server) (cmd command.LundeCommand, err error) {
+	rh := redditHandler{srv.Session}
+	cmd = command.LundeCommand{
+		HandleInteraction: rh.handleInteraction,
+		CommandData: api.CreateCommandData{
+			Name:        "reddit",
+			Description: "fetches reddit posts the given subreddit sorted by the given parameters",
+			Options: []discord.CommandOption{
+				{
+					Name:        "sort",
+					Type:        discord.StringOption,
+					Description: "what algorithm to sort posts by",
+					Required:    true,
+					Choices: []discord.CommandOptionChoice{
+						{Name: "top", Value: "top"},
+						{Name: "hot", Value: "hot"},
+						{Name: "controversial", Value: "controversial"},
+						{Name: "random", Value: "random"},
+					},
+				},
+				{
+					Name:        "sub",
+					Type:        discord.StringOption,
+					Description: "what subreddit to fetch from",
+					Required:    true,
+				},
+			},
+		},
 	}
-)
+
+	return
+}
 
 func utcToTimeStamp(utc int64) string {
 	tm := time.Unix(utc, 0)
@@ -29,11 +64,12 @@ func utcToTimeStamp(utc int64) string {
 }
 
 func isEmbeddable(url string) bool {
-	for _, suffix := range imgSuffixes {
-		if strings.HasSuffix(strings.ToLower(url), "."+suffix) {
-			return true
-		}
+	urlDotSplits := strings.Split(strings.ToLower(url), ".")
+	switch urlDotSplits[len(urlDotSplits)-1] {
+	case "jpg", "png", "gif":
+		return true
 	}
+
 	return false
 }
 
@@ -63,41 +99,23 @@ func embedMessage(resp *geddit.Submission) discord.Embed {
 	return embed
 }
 
-// CommandData returns request
-func CommandData() api.CreateCommandData {
-	return api.CreateCommandData{
-		Name:        "reddit",
-		Description: "fetches reddit posts sorting by the specified order from the given subreddit",
-		Options: []discord.CommandOption{
-			{
-				Name:        "sort",
-				Type:        discord.StringOption,
-				Description: "what algorithm to sort posts by",
-				Required:    true,
-				Choices: []discord.CommandOptionChoice{
-					{Name: "top", Value: "top"},
-					{Name: "hot", Value: "hot"},
-					{Name: "random", Value: "random"},
-				},
-			},
-			{
-				Name:        "sub",
-				Type:        discord.StringOption,
-				Description: "what subreddit to fetch from",
-				Required:    true,
-			},
-		},
-	}
-}
-
-// HandleReddit fetches a post from reddit from the given parameters
-func HandleReddit(sort string, sub string) (
-	response *api.InteractionResponseData, isNSFW bool, err error,
+func (rh *redditHandler) handleInteraction(
+	event *gateway.InteractionCreateEvent,
+	options map[string]string,
+) (
+	response *api.InteractionResponseData, err error,
 ) {
+	var recChan *discord.Channel
+	recChan, err = rh.session.Channel(event.ChannelID)
+	if err != nil {
+		err = fmt.Errorf("get channel when handling /reddit: %v", err)
+		return
+	}
+
 	var resp *geddit.Submission
 	var subreddit string
 	nrPost := 1
-	splits := strings.Split(sub, " ")
+	splits := strings.Split(options["sub"], " ")
 	subreddit = splits[0]
 	if len(splits) > 1 {
 		nrPost, err = strconv.Atoi(splits[1])
@@ -113,16 +131,26 @@ func HandleReddit(sort string, sub string) (
 		nrPost = 0
 	}
 
-	resp, err = getPost(sort, subreddit, nrPost)
+	resp, err = getPost(options["sort"], subreddit, nrPost)
 	if err != nil {
 		return
 	}
 
-	isNSFW = resp.IsNSFW
+	if resp.IsNSFW && !recChan.NSFW {
+		nick := event.Member.Nick
+		if nick == "" {
+			nick = event.Member.User.Username
+		}
+		response = &api.InteractionResponseData{
+			Content: option.NewNullableString(
+				fmt.Sprintf("this is a christian channel, %s", nick)),
+		}
+		return
+	}
 
 	response = &api.InteractionResponseData{}
 	if strings.HasSuffix(resp.URL, resp.Permalink) || isEmbeddable(resp.URL) {
-		response.Embeds = []discord.Embed{embedMessage(resp)}
+		response.Embeds = &[]discord.Embed{embedMessage(resp)}
 	} else {
 		title := fmt.Sprintf("*%s on %s*: <https://reddit.com%s>\n%s",
 			resp.Author, utcToTimeStamp(int64(resp.DateCreated)), resp.Permalink, resp.Title)
@@ -132,20 +160,12 @@ func HandleReddit(sort string, sub string) (
 		} else {
 			messageBody = resp.URL
 		}
-		response.Content = fmt.Sprintf("%s\n%s\n⬆%v", title, messageBody, resp.Ups)
+		response.Content = option.NewNullableString(
+			fmt.Sprintf("%s\n%s\n⬆%v", title, messageBody, resp.Ups))
 	}
 
 	return
 }
-
-/*
-	response = &api.InteractionResponseData{}
-	if msg.Embed != nil {
-		response.Embeds = append(response.Embeds, *msg.Embed)
-	} else {
-		response.Content = fmt.Sprintf("%s\n%s", msg.Title, msg.Message)
-	}
-*/
 
 func getPost(scheme string, subreddit string, nrPost int) (*geddit.Submission, error) {
 	// Set listing options
