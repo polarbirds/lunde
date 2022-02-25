@@ -1,114 +1,91 @@
 package server
 
 import (
-	"errors"
 	"fmt"
 	"math/rand"
-	"os"
 	"reflect"
 	"regexp"
-	"strconv"
-	"strings"
 	"sync"
 
 	"github.com/diamondburned/arikawa/v3/api"
 	"github.com/diamondburned/arikawa/v3/discord"
 	"github.com/diamondburned/arikawa/v3/gateway"
 	"github.com/diamondburned/arikawa/v3/session"
-	"github.com/diamondburned/arikawa/v3/utils/json/option"
-	"github.com/polarbirds/lunde/internal/command/define"
-	"github.com/polarbirds/lunde/internal/command/reddit"
-	"github.com/polarbirds/lunde/internal/command/slap"
-	"github.com/polarbirds/lunde/internal/command/text"
+	"github.com/haraldfw/cfger"
+	"github.com/polarbirds/lunde/internal/command"
 	"github.com/sirupsen/logrus"
+	"gopkg.in/go-playground/validator.v9"
 )
 
-var nicePattern = regexp.MustCompile("(^|\\D)69(\\D|$)")
+// CreateCommand is a function that returns a LundeCommand
+type CreateCommand func(*Server) (command.LundeCommand, error)
+
+var nicePattern = regexp.MustCompile(`(^|\D)69(\D|$)`)
 
 // Server is the config and main server
 type Server struct {
-	Token   string `validate:"required"`
-	AppID   string `validate:"required"`
-	GuildID string `validate:"required"`
+	Token            string            `yaml:"token" validate:"required"`
+	AppID            discord.AppID     `yaml:"appID" validate:"required"`
+	GuildID          discord.GuildID   `yaml:"guildID" validate:"required"`
+	BacklogChannelID discord.ChannelID `yaml:"backlogChannelID" validate:"required"`
 
-	appIDSnowFlake   discord.AppID
-	guildIDSnowFlake discord.GuildID
+	commands map[string]command.LundeCommand
 
-	sess                  *session.Session
-	lastMessages          map[discord.ChannelID]*gateway.MessageCreateEvent
+	Session               *session.Session
+	LastMessages          map[discord.ChannelID]*gateway.MessageCreateEvent
 	lastMessageWriteMutex sync.Mutex
 }
 
 // New creates a new server instance with initialized variables
 func New() (srv Server, err error) {
 	srv = Server{
-		lastMessages: make(map[discord.ChannelID]*gateway.MessageCreateEvent),
+		LastMessages: make(map[discord.ChannelID]*gateway.MessageCreateEvent),
 	}
 
-	srv.Token, _ = os.LookupEnv("TOKEN")
-	srv.AppID, _ = os.LookupEnv("APPID")
-	srv.GuildID, _ = os.LookupEnv("GUILDID")
-
-	if srv.Token == "" {
-		err = errors.New("blank token value in config")
-		return
-	}
-
-	srv.Token = strings.TrimSpace(srv.Token)
-	srv.AppID = strings.TrimSpace(srv.AppID)
-	srv.GuildID = strings.TrimSpace(srv.GuildID)
-
-	appIDUInt64, err := strconv.ParseUint(srv.AppID, 10, 64)
-	if err != nil {
-		return
-	}
-	guildIDUInt64, err := strconv.ParseUint(srv.GuildID, 10, 64)
+	_, err = cfger.ReadStructuredCfgRecursive("env::CONFIG", &srv)
 	if err != nil {
 		return
 	}
 
-	srv.appIDSnowFlake = discord.AppID(appIDUInt64)
-	srv.guildIDSnowFlake = discord.GuildID(guildIDUInt64)
+	validate := validator.New()
+	err = validate.Struct(&srv)
+	if err != nil {
+		err = fmt.Errorf("validating server config: %w", err)
+		return
+	}
+
+	srv.commands = map[string]command.LundeCommand{}
+
 	return
 }
 
-func removeCommandFromSlice(s []discord.Command, i int) []discord.Command {
-	if len(s) <= 1 {
-		return []discord.Command{}
-	}
-
-	s[i] = s[len(s)-1]
-	return s[:len(s)-1]
-}
-
-//revive:disable-next-line:cyclomatic
 // Initialize the server with the given session
-func (srv *Server) Initialize(s *session.Session) error {
-	srv.sess = s
+func (srv *Server) Initialize(s *session.Session, commandCreators []CreateCommand) error {
+	srv.Session = s
 
-	existingCmds, err := srv.sess.GuildCommands(srv.appIDSnowFlake, srv.guildIDSnowFlake)
+	existingCmds, err := srv.Session.GuildCommands(srv.AppID, srv.GuildID)
 	if err != nil {
 		return fmt.Errorf("error fetching existing commands: %v", err)
 	}
 
-	newCMDs := []api.CreateCommandData{
-		reddit.CommandData(),
-		define.CommandData(),
-		slap.CommandData(),
-		text.CommandData(),
-		{
-			Name:        "test",
-			Description: "test stuff",
-		},
-	}
+	logrus.Infof("creating/updating %d guild commands...", len(commandCreators))
 
 	existingCommandsEdited := 0
+	i := 0
+	cmdMap := make(map[string]command.LundeCommand)
 
-	logrus.Infof("creating %d guild commands...", len(newCMDs))
-	for i, cmdData := range newCMDs {
+	for _, createCMD := range commandCreators {
+		i++
+		cmd, err := createCMD(srv)
+		if err != nil {
+			return fmt.Errorf("error creating command: %v", err)
+		}
+
+		cmdMap[cmd.CommandData.Name] = cmd
+
 		foundIndex := -1
 		for existingIndex, existingCommand := range existingCmds {
-			if existingCommand.Name == cmdData.Name {
+			if existingCommand.Name == cmd.CommandData.Name {
 				foundIndex = existingIndex
 				break
 			}
@@ -116,19 +93,19 @@ func (srv *Server) Initialize(s *session.Session) error {
 
 		if foundIndex > -1 {
 			existingCommand := existingCmds[foundIndex]
-			if cmdData.Description == existingCommand.Description &&
-				reflect.DeepEqual(cmdData.Options, existingCommand.Options) {
-				logrus.Infof("(%d/%d) existing guild command unchanged: %q",
-					i+1, len(newCMDs), cmdData.Name)
+			if cmd.CommandData.Description == existingCommand.Description &&
+				reflect.DeepEqual(cmd.CommandData.Options, existingCommand.Options) {
+				logrus.Infof("(%d/%d) existing guild command %q unchanged",
+					i, len(commandCreators), cmd.CommandData.Name)
 			} else {
-				_, err := srv.sess.EditGuildCommand(
-					srv.appIDSnowFlake, srv.guildIDSnowFlake, existingCommand.ID, cmdData)
+				_, err := srv.Session.EditGuildCommand(
+					srv.AppID, srv.GuildID, existingCommand.ID, cmd.CommandData)
 				if err != nil {
 					return fmt.Errorf("error occurred editing existing guild command %q: %v",
-						cmdData.Name, err)
+						cmd.CommandData.Name, err)
 				}
 				logrus.Infof("(%d/%d) edited existing guild command %q",
-					i+1, len(newCMDs), cmdData.Name)
+					i, len(commandCreators), cmd.CommandData.Name)
 			}
 
 			existingCommandsEdited++
@@ -136,24 +113,19 @@ func (srv *Server) Initialize(s *session.Session) error {
 			continue
 		}
 
-		logrus.Infof("creating guild command (%d/%d) %q", i+1, len(newCMDs), cmdData.Name)
-		_, err := srv.sess.CreateGuildCommand(
-			srv.appIDSnowFlake,
-			srv.guildIDSnowFlake,
-			cmdData)
+		logrus.Infof("(%d/%d) creating guild command %q",
+			i+1, len(commandCreators), cmd.CommandData.Name)
+		_, err = srv.Session.CreateGuildCommand(srv.AppID, srv.GuildID, cmd.CommandData)
 		if err != nil {
-			return fmt.Errorf("error occurred creating guild command %q: %v", cmdData.Name, err)
+			return fmt.Errorf("createGuildCommand: %w", err)
 		}
 	}
 
 	if len(existingCmds) > 0 {
 		logrus.Infof("deleting %d guild commands...", len(existingCmds))
 		for i, cmd := range existingCmds {
-			logrus.Infof("deleting guild command (%d/%d) %q", i+1, len(existingCmds), cmd.Name)
-			err := srv.sess.DeleteGuildCommand(
-				cmd.AppID,
-				srv.guildIDSnowFlake,
-				cmd.ID)
+			logrus.Infof("(%d/%d) deleting guild command %q", i+1, len(existingCmds), cmd.Name)
+			err := srv.Session.DeleteGuildCommand(cmd.AppID, srv.GuildID, cmd.ID)
 			if err != nil {
 				return fmt.Errorf("error occurred deleting guild command %q: %v", cmd.Name, err)
 			}
@@ -161,13 +133,15 @@ func (srv *Server) Initialize(s *session.Session) error {
 
 		logrus.Infof("deleted %d guild commands", len(existingCmds))
 	}
+
+	srv.commands = cmdMap
 	return nil
 }
 
 // MessageCreateHandler handles every incoming normal message
 func (srv *Server) MessageCreateHandler(c *gateway.MessageCreateEvent) {
 	srv.lastMessageWriteMutex.Lock()
-	srv.lastMessages[c.ChannelID] = c
+	srv.LastMessages[c.ChannelID] = c
 	srv.lastMessageWriteMutex.Unlock()
 
 	if nicePattern.Match([]byte(c.Content)) {
@@ -175,9 +149,18 @@ func (srv *Server) MessageCreateHandler(c *gateway.MessageCreateEvent) {
 		if rand.Intn(2) == 1 {
 			emojiAPIString = "♋"
 		}
-		err := srv.sess.React(c.ChannelID, c.ID, emojiAPIString)
+		err := srv.Session.React(c.ChannelID, c.ID, emojiAPIString)
 		if err != nil {
 			logrus.Errorf("error occurred adding reaction: %v", err)
+			return
+		}
+	}
+
+	if c.ChannelID == srv.BacklogChannelID {
+		err := srv.Session.React(c.ChannelID, c.ID, "🗑")
+		if err != nil {
+			logrus.Errorf("error occurred adding reaction: %v", err)
+			return
 		}
 	}
 }
@@ -190,15 +173,15 @@ func (srv *Server) HandleComponentInteraction(ev *gateway.InteractionCreateEvent
 
 	inter := ev.Data.(*discord.ComponentInteractionData)
 
-	dm, err := srv.sess.CreatePrivateChannel(ev.Member.User.ID)
+	dm, err := srv.Session.CreatePrivateChannel(ev.Member.User.ID)
 	if err != nil {
 		logrus.Errorf("error occurred sending DM: %v", err)
 	} else {
-		srv.sess.SendMessage(
+		srv.Session.SendMessage(
 			dm.ID, fmt.Sprintf("you pressed the button with the custom ID: %s", inter.CustomID))
 	}
 
-	if err := srv.sess.RespondInteraction(ev.ID, ev.Token, api.InteractionResponse{
+	if err := srv.Session.RespondInteraction(ev.ID, ev.Token, api.InteractionResponse{
 		Type: api.DeferredMessageUpdate,
 	}); err != nil {
 		logrus.Errorf("failed to send interaction callback: %v", err)
@@ -210,143 +193,57 @@ func (srv *Server) HandleComponentInteraction(ev *gateway.InteractionCreateEvent
 //revive:disable-next-line:cyclomatic
 // HandleCommandInteraction is a handler-function handling interaction-events
 func (srv *Server) HandleCommandInteraction(ev *gateway.InteractionCreateEvent) {
-	var response *api.InteractionResponseData
-	var err error
-
 	if ev.Interaction.Type != discord.CommandInteraction {
 		return
 	}
 
-	defer srv.handleResponse(&response, ev, &err)
-
 	inter := ev.Data.(*discord.CommandInteractionData)
+	log := logrus.WithField("command", inter.Name)
+
 	options, err := opsToMap(inter.Options)
 	if err != nil {
-		err = fmt.Errorf("error occurred converting ops to a map: %v", err)
+		log.Errorf("error occurred converting ops to a map: %v", err)
 		return
 	}
 
-	switch inter.Name {
-	case "reddit":
-		var isNSFW bool
-		response, isNSFW, err = reddit.HandleReddit(options["sort"], options["sub"])
-		if err != nil {
-			err = fmt.Errorf("error handling /reddit: %v", err)
-			break
-		}
-
-		var recChan *discord.Channel
-		recChan, err = srv.sess.Channel(ev.ChannelID)
-		if err != nil {
-			err = fmt.Errorf("error when getting channel when handling /reddit: %v", err)
-			break
-		}
-
-		if isNSFW && !recChan.NSFW {
-			nick := ev.Member.Nick
-			if nick == "" {
-				nick = ev.Member.User.Username
-			}
-			response = &api.InteractionResponseData{
-				Content: option.NewNullableString(
-					fmt.Sprintf("this is a christian channel, %s", nick)),
-			}
-		}
-	case "define":
-		response, err = define.HandleDefine(options["term"])
-		if err != nil {
-			err = fmt.Errorf("error handling /define: %v", err)
-		}
-	case "slap":
-		response, err = slap.HandleSlap(
-			ev.Member.User,
-			options["target"],
-			options["reason"])
-		if err != nil {
-			err = fmt.Errorf("error handling /slap: %v", err)
-		}
-	case "text":
-		msg := options["message"]
-		if msg == "" {
-			if lMsg, ok := srv.lastMessages[ev.ChannelID]; ok {
-				msg = lMsg.Content
-			}
-		}
-		response, err = text.HandleText(options["algo"], msg)
-		if err != nil {
-			err = fmt.Errorf("error handling /text: %v", err)
-		}
-	case "test":
-		response = &api.InteractionResponseData{
-			Content: option.NewNullableString("BOIS WE HAVE BUTTS!"),
-			Components: &[]discord.Component{
-				&discord.ActionRowComponent{
-					Components: []discord.Component{
-						&discord.ButtonComponent{
-							Label:    "First BUTT!",
-							CustomID: "first_button",
-							Emoji: &discord.ButtonEmoji{
-								Name: "👋",
-							},
-							Style: discord.PrimaryButton,
-						},
-						&discord.ButtonComponent{
-							Label:    "Second BUTT",
-							CustomID: "second_button",
-							Style:    discord.SecondaryButton,
-						},
-						&discord.ButtonComponent{
-							Label:    "Success BUTT",
-							CustomID: "success_button",
-							Style:    discord.SuccessButton,
-						},
-						&discord.ButtonComponent{
-							Label:    "DANGER BUTT",
-							CustomID: "danger_button",
-							Style:    discord.DangerButton,
-						},
-						&discord.ButtonComponent{
-							Label: "Butts-BUTT",
-							URL:   "https://reddit.com/r/corgibutts",
-							Style: discord.LinkButton,
-						},
-					},
-				},
-			},
-		}
+	for name, val := range options {
+		log = log.WithField(name, val)
 	}
-}
 
-func (srv *Server) handleResponse(
-	presponse **api.InteractionResponseData,
-	ev *gateway.InteractionCreateEvent,
-	perr *error,
-) {
-	if presponse == nil {
+	cmd, exists := srv.commands[inter.Name]
+	if !exists {
+		log.Errorf("command %s does not exist", inter.Name)
 		return
 	}
-	response := *presponse
 
-	if response != nil {
-		data := api.InteractionResponse{
-			Type: api.MessageInteractionWithSource,
-			Data: response,
-		}
-		if err := srv.sess.RespondInteraction(ev.ID, ev.Token, data); err != nil {
-			logrus.Errorf("failed to send interaction callback: %v", err)
-		}
-	}
-
-	if perr != nil && *perr != nil {
-		err := *perr
-		logrus.Warnf("error occurred: %v", err)
-		dm, dmErr := srv.sess.CreatePrivateChannel(ev.Member.User.ID)
+	response, err := cmd.HandleInteraction(ev, options)
+	if err != nil {
+		log.Warnf("error occurred handling interaction: %v", err)
+		dm, dmErr := srv.Session.CreatePrivateChannel(ev.Member.User.ID)
 		if dmErr != nil {
-			logrus.Errorf("error occurred sending DM with prev error: %v", dmErr)
-		} else {
-			srv.sess.SendMessage(dm.ID, err.Error())
+			log.Errorf("error occurred creating private channel to report error: %v", dmErr)
+			return
 		}
+
+		_, dmErr = srv.Session.SendMessage(dm.ID, err.Error())
+		if dmErr != nil {
+			log.Errorf("error occurred sending DM to report error: %v", dmErr)
+			return
+		}
+
+		return
 	}
+
+	data := api.InteractionResponse{
+		Type: api.MessageInteractionWithSource,
+		Data: response,
+	}
+	if err := srv.Session.RespondInteraction(ev.ID, ev.Token, data); err != nil {
+		log.Errorf("failed to send interaction callback: %v", err)
+		return
+	}
+
+	log.Infof("responded")
 }
 
 func opsToMap(ops []discord.InteractionOption) (opMap map[string]string, err error) {
@@ -367,15 +264,15 @@ func opsToMap(ops []discord.InteractionOption) (opMap map[string]string, err err
 
 // DeleteGuildCommands deletes all guild commands for the configured guild and app ID
 func (srv *Server) DeleteGuildCommands() error {
-	cmds, err := srv.sess.GuildCommands(srv.appIDSnowFlake, srv.guildIDSnowFlake)
+	cmds, err := srv.Session.GuildCommands(srv.AppID, srv.GuildID)
 	if err != nil {
 		return fmt.Errorf("fetching existing commands: %v", err)
 	}
 
 	for i, cmd := range cmds {
-		err = srv.sess.DeleteGuildCommand(
+		err = srv.Session.DeleteGuildCommand(
 			cmd.AppID,
-			srv.guildIDSnowFlake,
+			srv.GuildID,
 			cmd.ID)
 		if err != nil {
 			return fmt.Errorf("deleting command %s: %v", cmd.Name, err)
@@ -384,4 +281,13 @@ func (srv *Server) DeleteGuildCommands() error {
 	}
 
 	return nil
+}
+
+func removeCommandFromSlice(s []discord.Command, i int) []discord.Command {
+	if len(s) <= 1 {
+		return []discord.Command{}
+	}
+
+	s[i] = s[len(s)-1]
+	return s[:len(s)-1]
 }

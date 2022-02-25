@@ -10,54 +10,65 @@ import (
 
 	"github.com/diamondburned/arikawa/v3/api"
 	"github.com/diamondburned/arikawa/v3/discord"
+	"github.com/diamondburned/arikawa/v3/gateway"
 	"github.com/diamondburned/arikawa/v3/utils/json/option"
 	"github.com/jmcvetta/randutil"
+	"github.com/polarbirds/lunde/internal/command"
+	"github.com/polarbirds/lunde/internal/server"
 )
 
-// CommandData returns request
-func CommandData() api.CreateCommandData {
-	return api.CreateCommandData{
-		Name:        "slap",
-		Description: "slap someone with a trout",
-		Options: []discord.CommandOption{
-			{
-				Name:        "target",
-				Type:        discord.UserOption,
-				Description: "who to slap, a mention",
-				Required:    true,
-			},
-			{
-				Name: "reason",
-				Type: discord.StringOption,
-				Description: "optional addendum to the slap output, appended after `slaps <x> " +
-					"with a trout <addendum>",
-				Required: false,
+// CreateCommand creates a lunde command to slap people
+func CreateCommand(_ *server.Server) (cmd command.LundeCommand, err error) {
+	cmd = command.LundeCommand{
+		HandleInteraction: handleInteraction,
+		CommandData: api.CreateCommandData{
+			Name:        "slap",
+			Description: "slap someone with a trout",
+			Options: []discord.CommandOption{
+				{
+					Name:        "target",
+					Type:        discord.UserOption,
+					Description: "who to slap",
+					Required:    true,
+				},
+				{
+					Name: "reason",
+					Type: discord.StringOption,
+					Description: "optional addendum to the slap output, appended after `slaps " +
+						"<x> with a trout <addendum>",
+					Required: false,
+				},
 			},
 		},
 	}
+
+	return
 }
 
-// HandleSlap generates and sends a slap-sentence for the author and target of the given message
-func HandleSlap(author discord.User, targetID string, reason string) (
+func handleInteraction(event *gateway.InteractionCreateEvent, options map[string]string) (
 	response *api.InteractionResponseData, err error,
 ) {
 	det, adj, err := getAdjective()
 	if err != nil {
-		err = fmt.Errorf("error occurred getting adjective: %v", err)
+		err = fmt.Errorf("getting adjective: %v", err)
 		return
 	}
 
-	targetSnowflake, err := discord.ParseSnowflake(targetID)
+	targetSnowflake, err := discord.ParseSnowflake(options["target"])
 	if err != nil {
-		err = fmt.Errorf("error parsing target ID: %v", err)
+		err = fmt.Errorf("parsing target ID: %v", err)
 		return
 	}
 
 	response = &api.InteractionResponseData{
-		Content: option.NewNullableString(fmt.Sprintf(
-			"%s slaps %s around with %s %s trout %s",
-			author.Username, discord.UserID(targetSnowflake).Mention(), det, adj, reason),
-		),
+		Content: option.NewNullableString(
+			fmt.Sprintf(
+				"%s slaps %s around with %s %s trout %s",
+				event.Member.User.Username,
+				discord.UserID(targetSnowflake).Mention(),
+				det,
+				adj,
+				options["reason"])),
 	}
 
 	return

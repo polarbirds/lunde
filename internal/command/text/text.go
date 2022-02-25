@@ -5,55 +5,74 @@ import (
 	"errors"
 	"fmt"
 	"math/rand"
-	"regexp"
 	"strings"
 	"unicode"
 
 	"github.com/diamondburned/arikawa/v3/api"
 	"github.com/diamondburned/arikawa/v3/discord"
+	"github.com/diamondburned/arikawa/v3/gateway"
 	"github.com/diamondburned/arikawa/v3/utils/json/option"
 	"github.com/kortschak/zalgo"
+	"github.com/polarbirds/lunde/internal/command"
+	"github.com/polarbirds/lunde/internal/server"
 )
 
-// CommandData returns request
-func CommandData() api.CreateCommandData {
-	return api.CreateCommandData{
-		Name:        "text",
-		Description: "corrupt or converts a given message or the last message",
-		Options: []discord.CommandOption{
-			{
-				Name:        "algo",
-				Type:        discord.StringOption,
-				Description: "what algorithm to convert/corrupt the text with",
-				Required:    true,
-				Choices: []discord.CommandOptionChoice{
-					{Name: "spunge", Value: "spunge"},
-					{Name: "zalgo", Value: "zalgo"},
-					{Name: "chirese", Value: "chirese"},
+type textHandler struct {
+	srv *server.Server
+}
+
+// CreateCommand creates a lunde command handling text-conversion
+func CreateCommand(srv *server.Server) (cmd command.LundeCommand, err error) {
+	th := textHandler{srv}
+	cmd = command.LundeCommand{
+		HandleInteraction: th.handleInteraction,
+		CommandData: api.CreateCommandData{
+			Name:        "text",
+			Description: "corrupt or converts a given message or the last message",
+			Options: []discord.CommandOption{
+				{
+					Name:        "algo",
+					Type:        discord.StringOption,
+					Description: "what algorithm to convert/corrupt the text with",
+					Required:    true,
+					Choices: []discord.CommandOptionChoice{
+						{Name: "spunge", Value: "spunge"},
+						{Name: "zalgo", Value: "zalgo"},
+					},
 				},
-			},
-			{
-				Name:        "message",
-				Type:        discord.StringOption,
-				Description: "optional message to convert/corrupt",
-				Required:    false,
+				{
+					Name:        "message",
+					Type:        discord.StringOption,
+					Description: "optional message to convert/corrupt",
+					Required:    false,
+				},
 			},
 		},
 	}
+
+	return
 }
 
 // HandleText handles the text-command, converting/corrupting the given message in a way decided by
 // the value of algo
-func HandleText(
-	algo string,
-	message string,
-) (*api.InteractionResponseData, error) {
-	if message == "" {
-		return nil, errors.New("empty message")
+func (th *textHandler) handleInteraction(
+	event *gateway.InteractionCreateEvent,
+	options map[string]string,
+) (
+	response *api.InteractionResponseData, err error,
+) {
+	msg := options["message"]
+	if msg == "" {
+		if lastMsg, ok := th.srv.LastMessages[event.ChannelID]; ok {
+			msg = lastMsg.Content
+		} else {
+			err = errors.New("found no message from options or in channel")
+			return
+		}
 	}
 
 	return &api.InteractionResponseData{
-		Content: option.NewNullableString(convert(message, algo)),
+		Content: option.NewNullableString(convert(msg, options["algo"])),
 	}, nil
 }
 
@@ -83,7 +102,7 @@ func zalgoPlz(content string) string {
 	z.Middle = complex(0, 0.2)
 	z.Down = complex(0.001, 0.3)
 
-	fmt.Fprintf(z, content)
+	fmt.Fprint(z, content)
 	return w.String()
 }
 
@@ -103,16 +122,4 @@ func spungePlz(content string) string {
 		}
 	}
 	return string(contentRunes)
-}
-
-var chiresePattern = regexp.MustCompile("asd")
-
-const tmp = "||tmp||"
-
-func swap(src string, c1 string, c2 string) string {
-	src = strings.Replace(src, c1, tmp, -1) // c1 -> tmp
-	src = strings.Replace(src, c2, c1, -1)  // c2 -> c1
-	src = strings.Replace(src, tmp, c2, -1) // tmp -> c2
-
-	return src
 }

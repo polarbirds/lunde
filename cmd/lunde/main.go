@@ -9,10 +9,24 @@ import (
 
 	"github.com/diamondburned/arikawa/v3/gateway"
 	"github.com/diamondburned/arikawa/v3/session"
+	"github.com/polarbirds/lunde/internal/command/define"
+	"github.com/polarbirds/lunde/internal/command/promote"
+	"github.com/polarbirds/lunde/internal/command/reddit"
+	"github.com/polarbirds/lunde/internal/command/slap"
+	"github.com/polarbirds/lunde/internal/command/text"
 	"github.com/polarbirds/lunde/internal/healthcheck"
 	"github.com/polarbirds/lunde/internal/server"
 	"github.com/sirupsen/logrus"
 )
+
+// CommandCreators is the list of handlers of the commands that are active
+var CommandCreators = []server.CreateCommand{
+	reddit.CreateCommand,
+	slap.CreateCommand,
+	define.CreateCommand,
+	text.CreateCommand,
+	promote.CreateCommand,
+}
 
 func main() {
 	logrus.Info("starting lunde")
@@ -48,7 +62,7 @@ func main() {
 	defer sess.Close()
 
 	logrus.Info("initializing server")
-	err = srv.Initialize(sess)
+	err = srv.Initialize(sess, CommandCreators)
 	if err != nil {
 		logrus.Fatalf("error initializing server: %v", err)
 		return
@@ -75,8 +89,8 @@ func main() {
 
 	logrus.Info("Bot is now running.  Press CTRL-C to exit.")
 	sc := make(chan os.Signal, 1)
-	signal.Notify(sc, syscall.SIGINT, syscall.SIGTERM, os.Interrupt, os.Kill)
+	signal.Notify(sc, syscall.SIGINT, syscall.SIGTERM, os.Interrupt)
 	sigRec := <-sc
 
-	logrus.Infof("signal %v received, exiting", sigRec)
+	logrus.Infof("signal %v received, exiting...", sigRec)
 }

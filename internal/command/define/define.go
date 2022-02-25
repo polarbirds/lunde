@@ -10,10 +10,13 @@ import (
 
 	"github.com/diamondburned/arikawa/v3/api"
 	"github.com/diamondburned/arikawa/v3/discord"
+	"github.com/diamondburned/arikawa/v3/gateway"
 	"github.com/diamondburned/arikawa/v3/utils/json/option"
+	"github.com/polarbirds/lunde/internal/command"
+	"github.com/polarbirds/lunde/internal/server"
 )
 
-type ubResponse struct {
+type udResponse struct {
 	List []struct {
 		Word       string `json:"word"`
 		Definition string `json:"definition"`
@@ -23,24 +26,32 @@ type ubResponse struct {
 	} `json:"list"`
 }
 
-// CommandData returns request
-func CommandData() api.CreateCommandData {
-	return api.CreateCommandData{
-		Name:        "define",
-		Description: "fetch a totally legit definition from a very reputable and renowned source",
-		Options: []discord.CommandOption{
-			{
-				Name:        "term",
-				Type:        discord.StringOption,
-				Description: "term to fetch definition for",
-				Required:    true,
+// CreateCommand creates the define command
+func CreateCommand(_ *server.Server) (cmd command.LundeCommand, err error) {
+	cmd = command.LundeCommand{
+		HandleInteraction: handleInteraction,
+		CommandData: api.CreateCommandData{
+			Name: "define",
+			Description: "fetch a definition of a word of phrase from a reputable and renowned " +
+				"source of knowledge",
+			Options: []discord.CommandOption{
+				{
+					Name:        "term",
+					Type:        discord.StringOption,
+					Description: "term to fetch definition for",
+					Required:    true,
+				},
 			},
 		},
 	}
+
+	return
 }
 
-// HandleDefine fetches and sends a definition for the given term
-func HandleDefine(term string) (reply *api.InteractionResponseData, err error) {
+func handleInteraction(_ *gateway.InteractionCreateEvent, options map[string]string) (
+	response *api.InteractionResponseData, err error,
+) {
+	term := options["term"]
 	var res *http.Response
 	res, err = http.Get("http://api.urbandictionary.com/v0/define?term=" + url.QueryEscape(term))
 	if err != nil {
@@ -59,28 +70,28 @@ func HandleDefine(term string) (reply *api.InteractionResponseData, err error) {
 		return
 	}
 
-	var ubRes ubResponse
-	err = json.Unmarshal(bodBytes, &ubRes)
+	var udRes udResponse
+	err = json.Unmarshal(bodBytes, &udRes)
 	if err != nil {
 		err = fmt.Errorf("no definitions found")
 		return
 	}
 
-	if len(ubRes.List) == 0 {
+	if len(udRes.List) == 0 {
 		err = fmt.Errorf("no definition returned for the term: %s", term)
 		return
 	}
 
 	replyContent := fmt.Sprintf("Definition(s) for **%s**:", term)
-	for i := 0; i < 3 && i < len(ubRes.List); i++ {
-		def := ubRes.List[i]
+	for i := 0; i < 3 && i < len(udRes.List); i++ {
+		def := udRes.List[i]
 		replyContent += fmt.Sprintf("\n%d) **%s**: %s ⬆%v / ⬇%v\n%s\n",
 			i+1, def.Word, sanitizeUrbanDictionaryText(def.Definition),
 			def.ThumbsUp, def.ThumbsDown,
 			sanitizeUrbanDictionaryText(def.Example))
 	}
 
-	reply = &api.InteractionResponseData{
+	response = &api.InteractionResponseData{
 		Content: option.NewNullableString(replyContent),
 	}
 

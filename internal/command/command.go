@@ -1,40 +1,16 @@
 package command
 
 import (
-	"errors"
-	"strings"
+	"github.com/diamondburned/arikawa/v3/api"
+	"github.com/diamondburned/arikawa/v3/gateway"
 )
 
-var (
-	errNotEnoughArgs = errors.New("not enough arguments")
-)
-
-// GetCommand parses a message string and returns it as parts of a command
-func GetCommand(message string) (string, string, string, error) {
-	index := strings.Index(message, "!")
-	if index == -1 {
-		return "", "", "", errors.New("no scheme found")
-	}
-	command := message[index+1:]
-	if len(command) == 0 || command[0] == ' ' {
-		return "", "", "", errors.New("invalid command")
-	}
-
-	splits := strings.Split(command, " ")
-
-	if len(splits) < 1 {
-		return "", "", "", errNotEnoughArgs
-	}
-	source := splits[0]
-
-	var scheme string
-	if len(splits) > 1 {
-		scheme = splits[1]
-	}
-
-	var argument string
-	if len(splits) >= 3 {
-		argument = strings.Join(splits[2:], " ")
-	}
-	return source, scheme, argument, nil
+// LundeCommand is data about a command and the function to handle interactions in the way described
+// by the data
+type LundeCommand struct {
+	CommandData       api.CreateCommandData
+	HandleInteraction func(
+		event *gateway.InteractionCreateEvent,
+		options map[string]string,
+	) (*api.InteractionResponseData, error)
 }
