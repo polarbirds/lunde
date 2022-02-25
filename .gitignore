@@ -18,3 +18,5 @@ bin/
 /.push-*
 /.container-*
 /.dockerfile-*
+
+dev_cfg/cfg-develop.yml
