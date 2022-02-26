@@ -2,7 +2,7 @@ package roles
 
 import (
 	"fmt"
-	"strings"
+	"sort"
 
 	"github.com/diamondburned/arikawa/v3/api"
 	"github.com/diamondburned/arikawa/v3/discord"
@@ -55,36 +55,49 @@ func (rh *roleHandler) handleInteraction(
 		return
 	}
 
-	roles, err := rh.fetchRoles(target, guild)
-	if err != nil {
-		err = fmt.Errorf("fetchRoles(target, guild): %w", err)
-		return
-	}
-
-	response = &api.InteractionResponseData{}
-	response.Content = option.NewNullableString(strings.Join(roles, ","))
-
-	return
-}
-
-func (rh *roleHandler) fetchRoles(target discord.Snowflake, guild *discord.Guild) (
-	roles []string, err error,
-) {
 	member, err := rh.session.Member(guild.ID, discord.UserID(target))
 	if err != nil {
 		err = fmt.Errorf("rh.session.Member(guild.ID, discord.UserID): %w", err)
 		return nil, err
 	}
 
+	roles, err := rh.fetchRoles(member, guild)
+	if err != nil {
+		err = fmt.Errorf("fetchRoles(target, guild): %w", err)
+		return
+	}
+
+	response = &api.InteractionResponseData{}
+	response.Content = option.NewNullableString(formatMessage(roles, member))
+
+	return
+}
+
+func (rh *roleHandler) fetchRoles(member *discord.Member, guild *discord.Guild) (
+	roles []string, err error,
+) {
 	guildRoles := guild.Roles 
 
 	for _, r := range member.RoleIDs {
 		for _, gr := range guildRoles {
 			if r == gr.ID {
-				roles = append(roles, gr.Name)
+				roles = append(roles, "@" + gr.Name)
 			}
 		}
 	}
 
+	return
+}
+
+func formatMessage(roles []string, member * discord.Member) (msg string) {
+	sort.Strings(roles)
+	
+	msg = fmt.Sprintf("Roles for user %s:\n```", member.User.Username)
+
+	for _, r := range roles {
+		msg += fmt.Sprintf("\n%s", r)
+	}
+
+	msg += "```"
 	return
 }
