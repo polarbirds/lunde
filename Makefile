@@ -85,7 +85,7 @@ push-name:
 	@echo "pushed: $(IMAGE):$(VERSION)"
 
 run: build # make ARGS="hello these are my args" run
-	CONFIG=file::./dev_cfg/cfg.yml \
+	CONFIG=file::./dev_cfg/cfg-develop.yml \
 	./bin/$(ARCH)/$(BIN) ${ARGS}
 
 version:
