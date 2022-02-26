@@ -12,6 +12,7 @@ import (
 	"github.com/polarbirds/lunde/internal/command/define"
 	"github.com/polarbirds/lunde/internal/command/promote"
 	"github.com/polarbirds/lunde/internal/command/reddit"
+	"github.com/polarbirds/lunde/internal/command/roles"
 	"github.com/polarbirds/lunde/internal/command/slap"
 	"github.com/polarbirds/lunde/internal/command/text"
 	"github.com/polarbirds/lunde/internal/healthcheck"
@@ -26,6 +27,7 @@ var CommandCreators = []server.CreateCommand{
 	define.CreateCommand,
 	text.CreateCommand,
 	promote.CreateCommand,
+	roles.CreateCommand,
 }
 
 func main() {
