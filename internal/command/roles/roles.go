@@ -45,7 +45,7 @@ func (rh *roleHandler) handleInteraction(
 ) {
 	target, err := discord.ParseSnowflake(options["target"])
 	if err != nil {
-		err = fmt.Errorf("parseSnowflake(target): %w", err)
+		err = fmt.Errorf("parseSnowflake(options[\"target\"]): %w", err)
 		return
 	}
 
