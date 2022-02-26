@@ -17,7 +17,7 @@ import (
 	"gopkg.in/go-playground/validator.v9"
 )
 
-// CreateCommand is a function that returns a LundeCommand
+// CreateCommand is a function that returns a list of LundeCommands
 type CreateCommand func(*Server) (command.LundeCommand, error)
 
 var nicePattern = regexp.MustCompile(`(^|\D)69(\D|$)`)
@@ -29,11 +29,18 @@ type Server struct {
 	GuildID          discord.GuildID   `yaml:"guildID" validate:"required"`
 	BacklogChannelID discord.ChannelID `yaml:"backlogChannelID" validate:"required"`
 
+	MessagesToGetForDataBuild uint `yaml:"messagesToGetForDataBuild"`
+
 	commands map[string]command.LundeCommand
 
 	Session               *session.Session
 	LastMessages          map[discord.ChannelID]*gateway.MessageCreateEvent
 	lastMessageWriteMutex sync.Mutex
+
+	CountData  map[discord.UserID]map[string]int
+	CountMutex sync.RWMutex
+
+	BuildingDataDone bool
 }
 
 // New creates a new server instance with initialized variables
@@ -134,6 +141,8 @@ func (srv *Server) Initialize(s *session.Session, commandCreators []CreateComman
 		logrus.Infof("deleted %d guild commands", len(existingCmds))
 	}
 
+	go srv.buildData()
+
 	srv.commands = cmdMap
 	return nil
 }
@@ -143,6 +152,8 @@ func (srv *Server) MessageCreateHandler(c *gateway.MessageCreateEvent) {
 	srv.lastMessageWriteMutex.Lock()
 	srv.LastMessages[c.ChannelID] = c
 	srv.lastMessageWriteMutex.Unlock()
+
+	go srv.buildCountMessages([]discord.Message{c.Message})
 
 	if nicePattern.Match([]byte(c.Content)) {
 		var emojiAPIString discord.APIEmoji = "nice:536833842078810112"
@@ -165,42 +176,25 @@ func (srv *Server) MessageCreateHandler(c *gateway.MessageCreateEvent) {
 	}
 }
 
-// HandleComponentInteraction handles component interactions, e.g. button-presses
-func (srv *Server) HandleComponentInteraction(ev *gateway.InteractionCreateEvent) {
-	if ev.Interaction.Type != discord.ComponentInteraction {
+// HandleInteraction is a handler-function handling interaction-events
+func (srv *Server) HandleInteraction(ev *gateway.InteractionCreateEvent) {
+	switch ev.Data.(type) {
+	case *discord.CommandInteraction:
+		data := ev.Data.(*discord.CommandInteraction)
+		srv.handleCommandInteraction(ev, data)
 		return
 	}
-
-	inter := ev.Data.(*discord.ComponentInteractionData)
-
-	dm, err := srv.Session.CreatePrivateChannel(ev.Member.User.ID)
-	if err != nil {
-		logrus.Errorf("error occurred sending DM: %v", err)
-	} else {
-		srv.Session.SendMessage(
-			dm.ID, fmt.Sprintf("you pressed the button with the custom ID: %s", inter.CustomID))
-	}
-
-	if err := srv.Session.RespondInteraction(ev.ID, ev.Token, api.InteractionResponse{
-		Type: api.DeferredMessageUpdate,
-	}); err != nil {
-		logrus.Errorf("failed to send interaction callback: %v", err)
-	}
-
-	logrus.Infof("component interaction detected by %s: %s", ev.Member.Nick, inter.CustomID)
 }
 
 //revive:disable-next-line:cyclomatic
-// HandleCommandInteraction is a handler-function handling interaction-events
-func (srv *Server) HandleCommandInteraction(ev *gateway.InteractionCreateEvent) {
-	if ev.Interaction.Type != discord.CommandInteraction {
-		return
-	}
+// handleCommandInteraction is a handler-function handling interaction-events
+func (srv *Server) handleCommandInteraction(
+	event *gateway.InteractionCreateEvent,
+	data *discord.CommandInteraction,
+) {
+	log := logrus.WithField("command", data.Name)
 
-	inter := ev.Data.(*discord.CommandInteractionData)
-	log := logrus.WithField("command", inter.Name)
-
-	options, err := opsToMap(inter.Options)
+	options, err := opsToMap(data.Options)
 	if err != nil {
 		log.Errorf("error occurred converting ops to a map: %v", err)
 		return
@@ -210,16 +204,16 @@ func (srv *Server) HandleCommandInteraction(ev *gateway.InteractionCreateEvent) 
 		log = log.WithField(name, val)
 	}
 
-	cmd, exists := srv.commands[inter.Name]
+	cmd, exists := srv.commands[data.Name]
 	if !exists {
-		log.Errorf("command %s does not exist", inter.Name)
+		log.Errorf("command %s does not exist", data.Name)
 		return
 	}
 
-	response, err := cmd.HandleInteraction(ev, options)
+	responseData, err := cmd.HandleInteraction(event, options)
 	if err != nil {
 		log.Warnf("error occurred handling interaction: %v", err)
-		dm, dmErr := srv.Session.CreatePrivateChannel(ev.Member.User.ID)
+		dm, dmErr := srv.Session.CreatePrivateChannel(event.Member.User.ID)
 		if dmErr != nil {
 			log.Errorf("error occurred creating private channel to report error: %v", dmErr)
 			return
@@ -234,19 +228,19 @@ func (srv *Server) HandleCommandInteraction(ev *gateway.InteractionCreateEvent) 
 		return
 	}
 
-	data := api.InteractionResponse{
+	interactionResp := api.InteractionResponse{
 		Type: api.MessageInteractionWithSource,
-		Data: response,
+		Data: responseData,
 	}
-	if err := srv.Session.RespondInteraction(ev.ID, ev.Token, data); err != nil {
+	if err := srv.Session.RespondInteraction(event.ID, event.Token, interactionResp); err != nil {
 		log.Errorf("failed to send interaction callback: %v", err)
 		return
 	}
 
-	log.Infof("responded")
+	log.Infof("responded to interaction")
 }
 
-func opsToMap(ops []discord.InteractionOption) (opMap map[string]string, err error) {
+func opsToMap(ops discord.CommandInteractionOptions) (opMap map[string]string, err error) {
 	opMap = make(map[string]string)
 	for _, op := range ops {
 		var val string

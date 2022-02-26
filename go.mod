@@ -3,7 +3,7 @@ module github.com/polarbirds/lunde
 go 1.17
 
 require (
-	github.com/diamondburned/arikawa/v3 v3.0.0-rc.2
+	github.com/diamondburned/arikawa/v3 v3.0.0-rc.5
 	github.com/google/go-querystring v0.0.0-20170111101155-53e6ce116135
 	github.com/haraldfw/cfger v0.0.0-20200311144633-4b67bfd68b65
 	github.com/jmcvetta/randutil v0.0.0-20150817122601-2bb1b664bcff
@@ -24,10 +24,10 @@ require (
 	github.com/kr/pretty v0.2.0 // indirect
 	github.com/leodido/go-urn v1.2.1 // indirect
 	github.com/pkg/errors v0.9.1 // indirect
-	golang.org/x/net v0.0.0-20200625001655-4c5254603344 // indirect
+	golang.org/x/net v0.0.0-20210226172049-e18ecbb05110 // indirect
 	golang.org/x/oauth2 v0.0.0-20190226205417-e64efc72b421 // indirect
-	golang.org/x/sys v0.0.0-20201018230417-eeed37f84f13 // indirect
-	golang.org/x/time v0.0.0-20200630173020-3af7569d3a1e // indirect
+	golang.org/x/sys v0.0.0-20211001092434-39dca1131b70 // indirect
+	golang.org/x/time v0.0.0-20210723032227-1f47c861a9ac // indirect
 	google.golang.org/appengine v1.6.5 // indirect
 	google.golang.org/protobuf v1.23.0 // indirect
 	gopkg.in/check.v1 v1.0.0-20190902080502-41f04d3bba15 // indirect

@@ -19,9 +19,8 @@ func CreateCommand(_ *server.Server) (cmd command.LundeCommand, err error) {
 			Name:        "promote",
 			Description: "promote someone to birb",
 			Options: []discord.CommandOption{
-				{
-					Name:        "target",
-					Type:        discord.UserOption,
+				&discord.UserOption{
+					OptionName:  "target",
 					Description: "who to promote",
 					Required:    true,
 				},

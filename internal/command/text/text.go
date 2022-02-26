@@ -30,19 +30,17 @@ func CreateCommand(srv *server.Server) (cmd command.LundeCommand, err error) {
 			Name:        "text",
 			Description: "corrupt or converts a given message or the last message",
 			Options: []discord.CommandOption{
-				{
-					Name:        "algo",
-					Type:        discord.StringOption,
+				&discord.StringOption{
+					OptionName:  "algo",
 					Description: "what algorithm to convert/corrupt the text with",
 					Required:    true,
-					Choices: []discord.CommandOptionChoice{
+					Choices: []discord.StringChoice{
 						{Name: "spunge", Value: "spunge"},
 						{Name: "zalgo", Value: "zalgo"},
 					},
 				},
-				{
-					Name:        "message",
-					Type:        discord.StringOption,
+				&discord.StringOption{
+					OptionName:  "message",
 					Description: "optional message to convert/corrupt",
 					Required:    false,
 				},

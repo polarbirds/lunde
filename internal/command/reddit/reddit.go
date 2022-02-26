@@ -30,24 +30,23 @@ func CreateCommand(srv *server.Server) (cmd command.LundeCommand, err error) {
 	cmd = command.LundeCommand{
 		HandleInteraction: rh.handleInteraction,
 		CommandData: api.CreateCommandData{
-			Name:        "reddit",
-			Description: "fetches reddit posts the given subreddit sorted by the given parameters",
+			Name: "reddit",
+			Description: "fetches reddit posts the given subreddit sorted by the given " +
+				"parameters",
 			Options: []discord.CommandOption{
-				{
-					Name:        "sort",
-					Type:        discord.StringOption,
+				&discord.StringOption{
+					OptionName:  "sort",
 					Description: "what algorithm to sort posts by",
 					Required:    true,
-					Choices: []discord.CommandOptionChoice{
+					Choices: []discord.StringChoice{
 						{Name: "top", Value: "top"},
 						{Name: "hot", Value: "hot"},
 						{Name: "controversial", Value: "controversial"},
 						{Name: "random", Value: "random"},
 					},
 				},
-				{
-					Name:        "sub",
-					Type:        discord.StringOption,
+				&discord.StringOption{
+					OptionName:  "sub",
 					Description: "what subreddit to fetch from",
 					Required:    true,
 				},

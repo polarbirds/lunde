@@ -2,3 +2,5 @@ token:
 appID:
 guildID:
 backlogChannelID:
+
+messagesToGetForDataBuild: 100 # 0 to get all, set to 100 while testing to start up faster

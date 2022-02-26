@@ -9,6 +9,7 @@ import (
 
 	"github.com/diamondburned/arikawa/v3/gateway"
 	"github.com/diamondburned/arikawa/v3/session"
+	"github.com/polarbirds/lunde/internal/command/count"
 	"github.com/polarbirds/lunde/internal/command/define"
 	"github.com/polarbirds/lunde/internal/command/members"
 	"github.com/polarbirds/lunde/internal/command/promote"
@@ -30,6 +31,7 @@ var CommandCreators = []server.CreateCommand{
 	promote.CreateCommand,
 	roles.CreateCommand,
 	members.CreateCommand,
+	count.CreateCommand,
 }
 
 func main() {
@@ -40,21 +42,19 @@ func main() {
 	}
 
 	logrus.Info("creating discord session")
-	sess, err := session.New("Bot " + srv.Token)
-	if err != nil {
-		logrus.Fatalf("error creating Discord session: %v", err)
-		return
-	}
+	sess := session.New("Bot " + srv.Token)
 
 	logrus.Info("adding handlers and intents")
 	sess.AddHandler(srv.MessageCreateHandler)
-	sess.AddHandler(srv.HandleCommandInteraction)
-	sess.AddHandler(srv.HandleComponentInteraction)
+	sess.AddHandler(srv.HandleInteraction)
+	// sess.AddHandler(srv.HandleComponentInteraction)
+	sess.AddHandler(srv.HandleReactionAddInteraction)
 
-	sess.Gateway.AddIntents(gateway.IntentGuilds)
-	sess.Gateway.AddIntents(gateway.IntentGuildMessages)
-	sess.Gateway.AddIntents(gateway.IntentGuildMessageReactions)
-	sess.Gateway.AddIntents(gateway.IntentDirectMessages)
+	sess.AddIntents(gateway.IntentGuilds)
+	sess.AddIntents(gateway.IntentGuildMessages)
+	sess.AddIntents(gateway.IntentGuildMessageReactions)
+	sess.AddIntents(gateway.IntentDirectMessages)
+	sess.AddIntents(gateway.IntentGuildMessageReactions)
 
 	logrus.Info("opening discord session")
 	err = sess.Open(context.Background())
