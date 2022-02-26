@@ -41,7 +41,7 @@ func (mh *memberHandler) handleInteraction(
 	event *gateway.InteractionCreateEvent, options map[string]string) (
 	response *api.InteractionResponseData, err error,
 ) {
-	role, err := discord.ParseSnowflake(options["role"])
+	roleStr, err := options["role"]
 	if err != nil {
 		err = fmt.Errorf("discord.ParseSnowflake(options[\"role\"]): %w", err)
 		return nil, err
@@ -53,11 +53,33 @@ func (mh *memberHandler) handleInteraction(
 		return nil, err
 	}
 
-	roles, err := mh.session.Roles(guild.ID)
+	roles := guild.Roles
+
+	role, err := fetchRole(roles, roleStr)
 	if err != nil {
-		err = fmt.Errorf("mh.session.Roles(guild.ID): %w", err)
+		err = fmt.Errorf("fetchRole(roles, roleStr): %w", err)
 		return nil, err
 	}
 
+	members, err := fetchMembers(role)
+	if err != nil {
+		err = fmt.Errorf("fetchMembers(role): %w", err)
+		return nil, err
+	}
+}
 
+func fetchRole(roles []discord.Role, roleStr string) (
+	role discord.Role, err error,
+) {
+	for _, r := range roles {
+		if r.Name == roleStr {
+			role = r
+		}
+	}
+	
+	return
+}
+
+func fetchMembers(role discord.Role) (members []discord.Member, err error) {
+	
 }
