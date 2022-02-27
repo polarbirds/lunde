@@ -43,19 +43,19 @@ func (rh *roleHandler) handleInteraction(
 	event *gateway.InteractionCreateEvent, options map[string]string) (
 	response *api.InteractionResponseData, err error,
 ) {
-	target, err := discord.ParseSnowflake(options["target"])
+	targetSnowflake, err := discord.ParseSnowflake(options["targetSnowflake"])
 	if err != nil {
-		err = fmt.Errorf("parseSnowflake(target): %w", err)
+		err = fmt.Errorf("parseSnowflake(options[\"targetSnowflake\"]): %w", err)
 		return
 	}
 
 	guild, err := rh.session.Guild(event.GuildID)
 	if err != nil {
-		err = fmt.Errorf("rh.session.Guild(target): %w", err)
+		err = fmt.Errorf("rh.session.Guild(event.GuildID): %w", err)
 		return
 	}
 
-	member, err := rh.session.Member(guild.ID, discord.UserID(target))
+	member, err := rh.session.Member(guild.ID, discord.UserID(targetSnowflake))
 	if err != nil {
 		err = fmt.Errorf("rh.session.Member(guild.ID, discord.UserID): %w", err)
 		return nil, err
@@ -63,7 +63,7 @@ func (rh *roleHandler) handleInteraction(
 
 	roles, err := rh.fetchRoles(member, guild)
 	if err != nil {
-		err = fmt.Errorf("fetchRoles(target, guild): %w", err)
+		err = fmt.Errorf("rh.fetchRoles(member, guild): %w", err)
 		return
 	}
 
