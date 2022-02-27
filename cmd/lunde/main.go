@@ -10,6 +10,7 @@ import (
 	"github.com/diamondburned/arikawa/v3/gateway"
 	"github.com/diamondburned/arikawa/v3/session"
 	"github.com/polarbirds/lunde/internal/command/define"
+	"github.com/polarbirds/lunde/internal/command/members"
 	"github.com/polarbirds/lunde/internal/command/promote"
 	"github.com/polarbirds/lunde/internal/command/reddit"
 	"github.com/polarbirds/lunde/internal/command/roles"
@@ -28,6 +29,7 @@ var CommandCreators = []server.CreateCommand{
 	text.CreateCommand,
 	promote.CreateCommand,
 	roles.CreateCommand,
+	members.CreateCommand,
 }
 
 func main() {

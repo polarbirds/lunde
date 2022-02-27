@@ -2,11 +2,13 @@ package members
 
 import (
 	"fmt"
+	"sort"
 
 	"github.com/diamondburned/arikawa/v3/api"
 	"github.com/diamondburned/arikawa/v3/discord"
 	"github.com/diamondburned/arikawa/v3/gateway"
 	"github.com/diamondburned/arikawa/v3/session"
+	"github.com/diamondburned/arikawa/v3/utils/json/option"
 	"github.com/polarbirds/lunde/internal/command"
 	"github.com/polarbirds/lunde/internal/server"
 )
@@ -26,7 +28,7 @@ func CreateCommand(srv *server.Server) (cmd command.LundeCommand, err error) {
 			Options: []discord.CommandOption{
 				{
 					Name: 		 "role",
-					Type: 		 discord.UserOption,
+					Type: 		 discord.RoleOption,
 					Description: "role to check members for",
 					Required: 	 true,
 				},
@@ -41,11 +43,7 @@ func (mh *memberHandler) handleInteraction(
 	event *gateway.InteractionCreateEvent, options map[string]string) (
 	response *api.InteractionResponseData, err error,
 ) {
-	roleStr, err := options["role"]
-	if err != nil {
-		err = fmt.Errorf("discord.ParseSnowflake(options[\"role\"]): %w", err)
-		return nil, err
-	}
+	roleStr := options["role"]
 
 	guild, err := mh.session.Guild(event.GuildID)
 	if err != nil {
@@ -53,33 +51,62 @@ func (mh *memberHandler) handleInteraction(
 		return nil, err
 	}
 
+	guildMembers, err := mh.session.Members(guild.ID, 0)
+	if err != nil {
+		err = fmt.Errorf("mh.session.Members(guild.ID, 0): %w", err)
+		return nil, err
+	}
+
 	roles := guild.Roles
+	role := fetchRole(roles, roleStr)
 
-	role, err := fetchRole(roles, roleStr)
-	if err != nil {
-		err = fmt.Errorf("fetchRole(roles, roleStr): %w", err)
-		return nil, err
-	}
+	members := fetchMembers(role, guildMembers)
 
-	members, err := fetchMembers(role)
-	if err != nil {
-		err = fmt.Errorf("fetchMembers(role): %w", err)
-		return nil, err
-	}
+	response = &api.InteractionResponseData{}
+	response.Content = option.NewNullableString(formatMessage(members, role))
+
+	return
 }
 
 func fetchRole(roles []discord.Role, roleStr string) (
-	role discord.Role, err error,
+	role discord.Role,
 ) {
 	for _, r := range roles {
-		if r.Name == roleStr {
+		if r.ID.String() == roleStr {
 			role = r
+			break
 		}
 	}
 	
 	return
 }
 
-func fetchMembers(role discord.Role) (members []discord.Member, err error) {
+func fetchMembers(role discord.Role, guildMembers []discord.Member) (
+	members []string,
+) {
+	for _, m := range guildMembers {
+		for _, roleId := range m.RoleIDs {
+			if roleId == role.ID {
+				userStr := "@" + m.User.Username
+				if m.Nick != "" {
+					userStr += " (" + m.Nick + ")"
+				}
+				members = append(members, userStr)
+			}
+		}
+	}
+	return
+}
+
+func formatMessage(members []string, role discord.Role) (msg string) {
+	sort.Strings(members)
 	
+	msg = fmt.Sprintf("Members in role %s:\n```", role.Name)
+
+	for _, m := range members {
+		msg += fmt.Sprintf("\n%s", m)
+	}
+
+	msg += "```"
+	return
 }
