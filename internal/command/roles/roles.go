@@ -23,19 +23,18 @@ func CreateCommand(srv *server.Server) (cmd command.LundeCommand, err error) {
 	cmd = command.LundeCommand{
 		HandleInteraction: rh.handleInteraction,
 		CommandData: api.CreateCommandData{
-			Name: 		 "roles",
+			Name:        "roles",
 			Description: "Check the roles of a user",
 			Options: []discord.CommandOption{
-				{
-					Name: 		 "target",
-					Type: 		 discord.UserOption,
+				&discord.UserOption{
+					OptionName:  "target",
 					Description: "user to check the roles of",
-					Required: 	 true,
+					Required:    true,
 				},
 			},
 		},
 	}
-	
+
 	return
 }
 
@@ -76,12 +75,12 @@ func (rh *roleHandler) handleInteraction(
 func (rh *roleHandler) fetchRoles(member *discord.Member, guild *discord.Guild) (
 	roles []string, err error,
 ) {
-	guildRoles := guild.Roles 
+	guildRoles := guild.Roles
 
 	for _, r := range member.RoleIDs {
 		for _, gr := range guildRoles {
 			if r == gr.ID {
-				roles = append(roles, "@" + gr.Name)
+				roles = append(roles, "@"+gr.Name)
 			}
 		}
 	}
@@ -89,9 +88,9 @@ func (rh *roleHandler) fetchRoles(member *discord.Member, guild *discord.Guild) 
 	return
 }
 
-func formatMessage(roles []string, member * discord.Member) (msg string) {
+func formatMessage(roles []string, member *discord.Member) (msg string) {
 	sort.Strings(roles)
-	
+
 	msg = fmt.Sprintf("Roles for user %s:\n```", member.User.Username)
 
 	for _, r := range roles {

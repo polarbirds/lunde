@@ -23,19 +23,18 @@ func CreateCommand(srv *server.Server) (cmd command.LundeCommand, err error) {
 	cmd = command.LundeCommand{
 		HandleInteraction: mh.handleInteraction,
 		CommandData: api.CreateCommandData{
-			Name: 		 "members",
+			Name:        "members",
 			Description: "Check the members of a role",
 			Options: []discord.CommandOption{
-				{
-					Name: 		 "role",
-					Type: 		 discord.RoleOption,
+				&discord.RoleOption{
+					OptionName:  "role",
 					Description: "role to check members for",
-					Required: 	 true,
+					Required:    true,
 				},
 			},
 		},
 	}
-	
+
 	return
 }
 
@@ -77,7 +76,7 @@ func fetchRole(roles []discord.Role, roleStr string) (
 			break
 		}
 	}
-	
+
 	return
 }
 
@@ -100,7 +99,7 @@ func fetchMembers(role discord.Role, guildMembers []discord.Member) (
 
 func formatMessage(members []string, role discord.Role) (msg string) {
 	sort.Strings(members)
-	
+
 	msg = fmt.Sprintf("Members in role %s:\n```", role.Name)
 
 	for _, m := range members {
