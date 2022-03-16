@@ -1,6 +1,6 @@
 module github.com/polarbirds/lunde
 
-go 1.17
+go 1.18
 
 require (
 	github.com/diamondburned/arikawa/v3 v3.0.0-rc.5
