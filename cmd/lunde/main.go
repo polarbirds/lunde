@@ -9,6 +9,7 @@ import (
 
 	"github.com/diamondburned/arikawa/v3/gateway"
 	"github.com/diamondburned/arikawa/v3/session"
+	"github.com/polarbirds/lunde/internal/channelnames"
 	"github.com/polarbirds/lunde/internal/command/count"
 	"github.com/polarbirds/lunde/internal/command/define"
 	"github.com/polarbirds/lunde/internal/command/members"
@@ -22,8 +23,8 @@ import (
 	"github.com/sirupsen/logrus"
 )
 
-// CommandCreators is the list of handlers of the commands that are active
-var CommandCreators = []server.CreateCommand{
+// commandCreators is the list of handlers of the commands that are active
+var commandCreators = []server.CreateCommand{
 	reddit.CreateCommand,
 	slap.CreateCommand,
 	define.CreateCommand,
@@ -45,7 +46,7 @@ func main() {
 	sess := session.New("Bot " + srv.Token)
 
 	logrus.Info("adding handlers and intents")
-	sess.AddHandler(srv.MessageCreateHandler)
+	sess.AddHandler(srv.HandleMessageCreate)
 	sess.AddHandler(srv.HandleInteraction)
 	// sess.AddHandler(srv.HandleComponentInteraction)
 	sess.AddHandler(srv.HandleReactionAddInteraction)
@@ -66,10 +67,9 @@ func main() {
 	defer sess.Close()
 
 	logrus.Info("initializing server")
-	err = srv.Initialize(sess, CommandCreators)
+	err = srv.Initialize(sess, commandCreators)
 	if err != nil {
 		logrus.Fatalf("error initializing server: %v", err)
-		return
 	}
 
 	deletecommands := flag.Bool(
@@ -90,6 +90,12 @@ func main() {
 	}
 
 	go healthcheck.StartHandlerIfEnabled()
+
+	err = channelnames.StartScheduler(&srv)
+	if err != nil {
+		logrus.Fatalf("error starting channelnames scheduler: %v", err)
+	}
+	logrus.Info("channelnames scheduler started")
 
 	logrus.Info("Bot is now running.  Press CTRL-C to exit.")
 	sc := make(chan os.Signal, 1)

@@ -47,12 +47,16 @@ func CreateCommand(_ *server.Server) (cmd command.LundeCommand, err error) {
 	return
 }
 
-func handleInteraction(_ *gateway.InteractionCreateEvent, options map[string]string) (
+func handleInteraction(
+	_ *gateway.InteractionCreateEvent,
+	options map[string]discord.CommandInteractionOption,
+) (
 	response *api.InteractionResponseData, err error,
 ) {
 	term := options["term"]
 	var res *http.Response
-	res, err = http.Get("http://api.urbandictionary.com/v0/define?term=" + url.QueryEscape(term))
+	res, err = http.Get("http://api.urbandictionary.com/v0/define?term=" +
+		url.QueryEscape(term.String()))
 	if err != nil {
 		err = fmt.Errorf("error contacting define server: %v", err)
 		return

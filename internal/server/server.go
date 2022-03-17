@@ -3,7 +3,6 @@ package server
 import (
 	"fmt"
 	"math/rand"
-	"reflect"
 	"regexp"
 	"sync"
 
@@ -17,7 +16,7 @@ import (
 	"gopkg.in/go-playground/validator.v9"
 )
 
-// CreateCommand is a function that returns a list of LundeCommands
+// CreateCommand is a function that returns a LundeCommand
 type CreateCommand func(*Server) (command.LundeCommand, error)
 
 var nicePattern = regexp.MustCompile(`(^|\D)69(\D|$)`)
@@ -70,75 +69,24 @@ func New() (srv Server, err error) {
 func (srv *Server) Initialize(s *session.Session, commandCreators []CreateCommand) error {
 	srv.Session = s
 
-	existingCmds, err := srv.Session.GuildCommands(srv.AppID, srv.GuildID)
-	if err != nil {
-		return fmt.Errorf("error fetching existing commands: %v", err)
-	}
+	logrus.Infof("creating/overwriting %d guild commands...", len(commandCreators))
 
-	logrus.Infof("creating/updating %d guild commands...", len(commandCreators))
-
-	existingCommandsEdited := 0
-	i := 0
 	cmdMap := make(map[string]command.LundeCommand)
+	cmdList := []api.CreateCommandData{}
 
 	for _, createCMD := range commandCreators {
-		i++
 		cmd, err := createCMD(srv)
 		if err != nil {
 			return fmt.Errorf("error creating command: %v", err)
 		}
 
 		cmdMap[cmd.CommandData.Name] = cmd
-
-		foundIndex := -1
-		for existingIndex, existingCommand := range existingCmds {
-			if existingCommand.Name == cmd.CommandData.Name {
-				foundIndex = existingIndex
-				break
-			}
-		}
-
-		if foundIndex > -1 {
-			existingCommand := existingCmds[foundIndex]
-			if cmd.CommandData.Description == existingCommand.Description &&
-				reflect.DeepEqual(cmd.CommandData.Options, existingCommand.Options) {
-				logrus.Infof("(%d/%d) existing guild command %q unchanged",
-					i, len(commandCreators), cmd.CommandData.Name)
-			} else {
-				_, err := srv.Session.EditGuildCommand(
-					srv.AppID, srv.GuildID, existingCommand.ID, cmd.CommandData)
-				if err != nil {
-					return fmt.Errorf("error occurred editing existing guild command %q: %v",
-						cmd.CommandData.Name, err)
-				}
-				logrus.Infof("(%d/%d) edited existing guild command %q",
-					i, len(commandCreators), cmd.CommandData.Name)
-			}
-
-			existingCommandsEdited++
-			existingCmds = removeCommandFromSlice(existingCmds, foundIndex)
-			continue
-		}
-
-		logrus.Infof("(%d/%d) creating guild command %q",
-			i+1, len(commandCreators), cmd.CommandData.Name)
-		_, err = srv.Session.CreateGuildCommand(srv.AppID, srv.GuildID, cmd.CommandData)
-		if err != nil {
-			return fmt.Errorf("createGuildCommand: %w", err)
-		}
+		cmdList = append(cmdList, cmd.CommandData)
 	}
 
-	if len(existingCmds) > 0 {
-		logrus.Infof("deleting %d guild commands...", len(existingCmds))
-		for i, cmd := range existingCmds {
-			logrus.Infof("(%d/%d) deleting guild command %q", i+1, len(existingCmds), cmd.Name)
-			err := srv.Session.DeleteGuildCommand(cmd.AppID, srv.GuildID, cmd.ID)
-			if err != nil {
-				return fmt.Errorf("error occurred deleting guild command %q: %v", cmd.Name, err)
-			}
-		}
-
-		logrus.Infof("deleted %d guild commands", len(existingCmds))
+	_, err := s.BulkOverwriteGuildCommands(srv.AppID, srv.GuildID, cmdList)
+	if err != nil {
+		return fmt.Errorf("bulk overwrite guild commands: %v", err)
 	}
 
 	go srv.buildData()
@@ -147,8 +95,8 @@ func (srv *Server) Initialize(s *session.Session, commandCreators []CreateComman
 	return nil
 }
 
-// MessageCreateHandler handles every incoming normal message
-func (srv *Server) MessageCreateHandler(c *gateway.MessageCreateEvent) {
+// HandleMessageCreate handles every incoming normal message
+func (srv *Server) HandleMessageCreate(c *gateway.MessageCreateEvent) {
 	srv.lastMessageWriteMutex.Lock()
 	srv.LastMessages[c.ChannelID] = c
 	srv.lastMessageWriteMutex.Unlock()
@@ -174,6 +122,8 @@ func (srv *Server) MessageCreateHandler(c *gateway.MessageCreateEvent) {
 			return
 		}
 	}
+
+	srv.buildDataFromMessages([]discord.Message{c.Message})
 }
 
 // HandleInteraction is a handler-function handling interaction-events
@@ -240,17 +190,13 @@ func (srv *Server) handleCommandInteraction(
 	log.Infof("responded to interaction")
 }
 
-func opsToMap(ops discord.CommandInteractionOptions) (opMap map[string]string, err error) {
-	opMap = make(map[string]string)
+func opsToMap(ops discord.CommandInteractionOptions) (
+	opMap map[string]discord.CommandInteractionOption,
+	err error,
+) {
+	opMap = make(map[string]discord.CommandInteractionOption)
 	for _, op := range ops {
-		var val string
-		err = op.Value.UnmarshalTo(&val)
-		if err != nil {
-			err = fmt.Errorf("unmarshalling op by name %q to string, value was: %v",
-				op.Name, op.Value)
-			return
-		}
-		opMap[op.Name] = string(val)
+		opMap[op.Name] = op
 	}
 
 	return

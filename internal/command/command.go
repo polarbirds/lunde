@@ -2,6 +2,7 @@ package command
 
 import (
 	"github.com/diamondburned/arikawa/v3/api"
+	"github.com/diamondburned/arikawa/v3/discord"
 	"github.com/diamondburned/arikawa/v3/gateway"
 )
 
@@ -11,6 +12,6 @@ type LundeCommand struct {
 	CommandData       api.CreateCommandData
 	HandleInteraction func(
 		event *gateway.InteractionCreateEvent,
-		options map[string]string,
+		options map[string]discord.CommandInteractionOption,
 	) (*api.InteractionResponseData, error)
 }

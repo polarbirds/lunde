@@ -39,10 +39,15 @@ func CreateCommand(srv *server.Server) (cmd command.LundeCommand, err error) {
 }
 
 func (mh *memberHandler) handleInteraction(
-	event *gateway.InteractionCreateEvent, options map[string]string) (
+	event *gateway.InteractionCreateEvent, options map[string]discord.CommandInteractionOption,
+) (
 	response *api.InteractionResponseData, err error,
 ) {
-	roleStr := options["role"]
+	roleFlake, err := options["role"].SnowflakeValue()
+	if err != nil {
+		err = fmt.Errorf("parsing role as flake: %v", err)
+		return
+	}
 
 	guild, err := mh.session.Guild(event.GuildID)
 	if err != nil {
@@ -57,7 +62,7 @@ func (mh *memberHandler) handleInteraction(
 	}
 
 	roles := guild.Roles
-	role := fetchRole(roles, roleStr)
+	role := fetchRole(roles, discord.RoleID(roleFlake))
 
 	members := fetchMembers(role, guildMembers)
 
@@ -67,11 +72,9 @@ func (mh *memberHandler) handleInteraction(
 	return
 }
 
-func fetchRole(roles []discord.Role, roleStr string) (
-	role discord.Role,
-) {
+func fetchRole(roles []discord.Role, roleID discord.RoleID) (role discord.Role) {
 	for _, r := range roles {
-		if r.ID.String() == roleStr {
+		if r.ID == roleID {
 			role = r
 			break
 		}
@@ -84,8 +87,8 @@ func fetchMembers(role discord.Role, guildMembers []discord.Member) (
 	members []string,
 ) {
 	for _, m := range guildMembers {
-		for _, roleId := range m.RoleIDs {
-			if roleId == role.ID {
+		for _, roleID := range m.RoleIDs {
+			if roleID == role.ID {
 				userStr := "@" + m.User.Username
 				if m.Nick != "" {
 					userStr += " (" + m.Nick + ")"

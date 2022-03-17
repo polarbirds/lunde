@@ -31,10 +31,12 @@ func CreateCommand(_ *server.Server) (cmd command.LundeCommand, err error) {
 	return
 }
 
-func handleInteraction(_ *gateway.InteractionCreateEvent, options map[string]string) (
+func handleInteraction(
+	_ *gateway.InteractionCreateEvent, options map[string]discord.CommandInteractionOption,
+) (
 	response *api.InteractionResponseData, err error,
 ) {
-	targetSnowflake, err := discord.ParseSnowflake(options["target"])
+	targetSnowflake, err := options["target"].SnowflakeValue()
 	if err != nil {
 		err = fmt.Errorf("parsing target ID: %v", err)
 		return

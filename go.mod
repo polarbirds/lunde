@@ -4,13 +4,13 @@ go 1.18
 
 require (
 	github.com/diamondburned/arikawa/v3 v3.0.0-rc.5
-	github.com/google/go-querystring v0.0.0-20170111101155-53e6ce116135
 	github.com/haraldfw/cfger v0.0.0-20200311144633-4b67bfd68b65
 	github.com/jmcvetta/randutil v0.0.0-20150817122601-2bb1b664bcff
 	github.com/jzelinskie/geddit v0.0.0-20171026172230-f75101e39ffe
 	github.com/kortschak/zalgo v0.0.0-20190131100928-344d6584eb92
 	github.com/sirupsen/logrus v1.6.0
 	gopkg.in/go-playground/validator.v9 v9.31.0
+	gopkg.in/robfig/cron.v2 v2.0.0-20150107220207-be2e0b0deed5
 )
 
 require (
@@ -18,6 +18,7 @@ require (
 	github.com/go-playground/locales v0.14.0 // indirect
 	github.com/go-playground/universal-translator v0.18.0 // indirect
 	github.com/golang/protobuf v1.4.2 // indirect
+	github.com/google/go-querystring v1.1.0 // indirect
 	github.com/gorilla/schema v1.2.0 // indirect
 	github.com/gorilla/websocket v1.4.2 // indirect
 	github.com/konsorten/go-windows-terminal-sequences v1.0.3 // indirect

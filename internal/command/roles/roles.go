@@ -39,10 +39,10 @@ func CreateCommand(srv *server.Server) (cmd command.LundeCommand, err error) {
 }
 
 func (rh *roleHandler) handleInteraction(
-	event *gateway.InteractionCreateEvent, options map[string]string) (
+	event *gateway.InteractionCreateEvent, options map[string]discord.CommandInteractionOption) (
 	response *api.InteractionResponseData, err error,
 ) {
-	targetSnowflake, err := discord.ParseSnowflake(options["targetSnowflake"])
+	targetSnowflake, err := options["targetSnowflake"].SnowflakeValue()
 	if err != nil {
 		err = fmt.Errorf("parseSnowflake(options[\"targetSnowflake\"]): %w", err)
 		return

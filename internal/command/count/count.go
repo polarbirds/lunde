@@ -1,6 +1,7 @@
 package count
 
 import (
+	"errors"
 	"fmt"
 	"sort"
 
@@ -24,6 +25,7 @@ type pair struct {
 // CreateCommand creates a lunde command to slap people
 func CreateCommand(srv *server.Server) (cmd command.LundeCommand, err error) {
 	ch := countHandler{srv}
+
 	cmd = command.LundeCommand{
 		HandleInteraction: ch.handleInteraction,
 		CommandData: api.CreateCommandData{
@@ -48,34 +50,35 @@ func CreateCommand(srv *server.Server) (cmd command.LundeCommand, err error) {
 }
 
 func (ch *countHandler) handleInteraction(
-	_ *gateway.InteractionCreateEvent, options map[string]string,
+	_ *gateway.InteractionCreateEvent, options map[string]discord.CommandInteractionOption,
 ) (
 	response *api.InteractionResponseData, err error,
 ) {
-	word := options["word"]
+	if !ch.srv.BuildingDataDone {
+		err = errors.New("building data not done, try again later")
+		return
+	}
+
+	word := options["word"].String()
 
 	var user *discord.User
-	target, targetSpecified := options["target"]
-	if targetSpecified {
-		var targetSnowflake discord.Snowflake
-		targetSnowflake, err = discord.ParseSnowflake(target)
-		if err != nil {
-			err = fmt.Errorf("parsing target ID: %w", err)
-			return
-		}
-		user, err = ch.srv.Session.User(discord.UserID(targetSnowflake))
-		if err != nil {
-			err = fmt.Errorf("get user: %w", err)
-			return
-		}
+	target, err := options["target"].SnowflakeValue()
+	if err != nil {
+		err = fmt.Errorf("parsing target ID: %w", err)
+		return
+	}
+	user, err = ch.srv.Session.User(discord.UserID(target))
+	if err != nil {
+		err = fmt.Errorf("get user: %w", err)
+		return
 	}
 
 	var msg string
-	if word != "" && target != "" {
+	if word != "" && !target.IsNull() {
 		msg, err = ch.wordCountForUser(word, user)
-	} else if word != "" && target == "" {
+	} else if word != "" && target.IsNull() {
 		msg, err = ch.topUsersForWord(word)
-	} else if word == "" && target != "" {
+	} else if word == "" && !target.IsNull() {
 		msg, err = ch.topWordsForUser(user)
 	}
 
