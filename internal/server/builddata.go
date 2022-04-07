@@ -57,7 +57,3 @@ func (srv *Server) buildDataForChannel(ch discord.Channel) {
 func (srv *Server) buildDataFromMessages(messages []discord.Message) {
 	srv.buildCountMessages(messages)
 }
-
-func (srv *Server) buildDataFromReaction(reactions []discord.Reaction) {
-
-}

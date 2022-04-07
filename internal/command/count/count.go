@@ -4,22 +4,25 @@ import (
 	"errors"
 	"fmt"
 	"sort"
+	"strings"
+	"time"
 
 	"github.com/diamondburned/arikawa/v3/api"
 	"github.com/diamondburned/arikawa/v3/discord"
 	"github.com/diamondburned/arikawa/v3/gateway"
-	"github.com/diamondburned/arikawa/v3/utils/json/option"
 	"github.com/polarbirds/lunde/internal/command"
 	"github.com/polarbirds/lunde/internal/server"
+	"github.com/sirupsen/logrus"
 )
 
 type countHandler struct {
 	srv *server.Server
 }
 
-type pair struct {
-	name  string
-	count int
+type wordCount struct {
+	userID discord.UserID
+	word   string
+	count  int
 }
 
 // CreateCommand creates a lunde command to slap people
@@ -34,12 +37,12 @@ func CreateCommand(srv *server.Server) (cmd command.LundeCommand, err error) {
 			Options: []discord.CommandOption{
 				&discord.StringOption{
 					OptionName:  "word",
-					Description: "what word to check for",
+					Description: "what word to show count(s) for",
 					Required:    false,
 				},
 				&discord.UserOption{
 					OptionName:  "target",
-					Description: "who to check words for",
+					Description: "who to show counts of words for",
 					Required:    false,
 				},
 			},
@@ -61,25 +64,28 @@ func (ch *countHandler) handleInteraction(
 
 	word := options["word"].String()
 
-	var user *discord.User
 	target, err := options["target"].SnowflakeValue()
 	if err != nil {
-		err = fmt.Errorf("parsing target ID: %w", err)
-		return
-	}
-	user, err = ch.srv.Session.User(discord.UserID(target))
-	if err != nil {
-		err = fmt.Errorf("get user: %w", err)
+		err = fmt.Errorf("parsing target snowflake: %w", err)
 		return
 	}
 
+	userID := discord.UserID(target)
+
+	var title string
 	var msg string
-	if word != "" && !target.IsNull() {
-		msg, err = ch.wordCountForUser(word, user)
-	} else if word != "" && target.IsNull() {
-		msg, err = ch.topUsersForWord(word)
-	} else if word == "" && !target.IsNull() {
-		msg, err = ch.topWordsForUser(user)
+	if word != "" && target != 0 {
+		// word and user defined
+		title, msg, err = ch.wordCountForUser(word, userID)
+	} else if word != "" && target == 0 {
+		// word defined but not user
+		title, msg, err = ch.topUsersForWord(word)
+	} else if word == "" && target != 0 {
+		// user defined but no word
+		title, msg, err = ch.topWordsForUser(userID)
+	} else {
+		err = errors.New("invalid combination of arguments")
+		return
 	}
 
 	if err != nil {
@@ -87,49 +93,59 @@ func (ch *countHandler) handleInteraction(
 		return
 	}
 
+	embed := discord.Embed{}
+	if title != "" {
+		embed.Title = title
+	}
+	if msg != "" {
+		embed.Description = msg
+	}
+	embeds := []discord.Embed{embed}
 	response = &api.InteractionResponseData{
-		Content: option.NewNullableString(msg),
+		Embeds: &embeds,
 	}
 
 	return
 }
 
-func (ch *countHandler) wordCountForUser(word string, user *discord.User) (
-	msg string, err error,
+func (ch *countHandler) wordCountForUser(word string, userID discord.UserID) (
+	_ string, msg string, err error,
 ) {
-	dataset, exists := ch.srv.CountData[user.ID]
+	dataset, exists := ch.srv.CountData[userID]
 	if !exists {
-		err = fmt.Errorf("found no dataset for userID %d", user.ID)
+		err = fmt.Errorf("found no dataset for userID %d", userID)
 		return
 	}
 
 	count, hasSaidWord := dataset[word]
 	if !hasSaidWord {
-		msg = fmt.Sprintf("the word %s has never been said by %s", word, user.Mention())
+		msg = fmt.Sprintf("the word `%s` has never been said by %s", word, userID.Mention())
 		return
 	}
-	msg = fmt.Sprintf("the word %s has been said by %s a total of %d times",
-		word, user.Mention(), count)
+	msg = fmt.Sprintf("the word `%s` has been said by %s a total of %d times",
+		word, userID.Mention(), count)
 	return
 }
 
-func (ch *countHandler) topWordsForUser(user *discord.User) (
-	msg string, err error,
+func (ch *countHandler) topWordsForUser(userID discord.UserID) (
+	title string, msg string, err error,
 ) {
-	dataset, exists := ch.srv.CountData[user.ID]
+	dataset, exists := ch.srv.CountData[userID]
 	if !exists {
-		err = fmt.Errorf("found no dataset for userID %d", user.ID)
+		err = fmt.Errorf("found no dataset for userID %d", userID)
 		return
 	}
 
-	msg = fmt.Sprintf("Top 10 words for %s:\n```", user.Username)
+	title = "Top 10 words for user"
+
+	msg = fmt.Sprintf("Top 10 words for %s:\n```", userID.Mention())
 	counts := sortSetAsPairs(dataset, false)
 	if len(counts) > 10 {
 		counts = counts[:10]
 	}
 
 	for i, p := range counts {
-		msg += fmt.Sprintf("\n%d. %s: %d", i+1, p.name, p.count)
+		msg += fmt.Sprintf("\n%d. %s: %d", i+1, p.word, p.count)
 	}
 
 	msg += "```"
@@ -137,55 +153,68 @@ func (ch *countHandler) topWordsForUser(user *discord.User) (
 }
 
 func (ch *countHandler) topUsersForWord(word string) (
-	msg string, err error,
+	title string, msg string, err error,
 ) {
-	usersCounts := []pair{}
+	started := time.Now()
+	logrus.Infof("started: %s", started.Format(time.RFC3339))
+
+	wordCounts := []wordCount{}
 	for userID, userData := range ch.srv.CountData {
-		var user *discord.User
-		user, err = ch.srv.Session.User(userID)
-		if err != nil {
-			err = fmt.Errorf("get user for userID %q: %w", userID, err)
-			return
+		if userID == 0 {
+			continue
 		}
 		count, hasSaidWord := userData[word]
 		if !hasSaidWord {
 			continue
 		}
-		usersCounts = append(usersCounts, pair{
-			name:  user.Username,
-			count: count,
+		wordCounts = append(wordCounts, wordCount{
+			userID: userID,
+			word:   word,
+			count:  count,
 		})
 	}
 
-	if len(usersCounts) == 0 {
-		msg = fmt.Sprintf("No one has said the word %q before", word)
+	if len(wordCounts) == 0 {
+		title = fmt.Sprintf("No one has said the word `%s` before", word)
 		return
 	}
 
-	msg = fmt.Sprintf("Top 10 users who have said %q:\n```", word)
-	counts := sortPairs(usersCounts, false)
-	if len(counts) > 10 {
-		counts = counts[:10]
+	wordCountsCount := 10
+	if len(wordCounts) < 10 {
+		wordCountsCount = len(wordCounts)
 	}
+
+	title = fmt.Sprintf("Top %d users who have said `%s`", wordCountsCount, word)
+
+	msg = ""
+	counts := sortPairs(wordCounts, false)
+	if len(counts) > wordCountsCount {
+		counts = counts[:wordCountsCount]
+	}
+
+	lines := make([]string, len(counts))
 
 	for i, p := range counts {
-		msg += fmt.Sprintf("\n%d. %s: %d", i+1, p.name, p.count)
+		lines = append(lines, fmt.Sprintf("%d. %s: %d", i+1, p.userID.Mention(), p.count))
 	}
 
-	msg += "```"
+	msg = strings.Join(lines, "\n")
 	return
 }
 
-func sortSetAsPairs(set map[string]int, reverse bool) []pair {
-	var sortedSet []pair
+func sortSetAsPairs(set map[string]int, reverse bool) []wordCount {
+	var sortedSet []wordCount
 	for k, v := range set {
-		sortedSet = append(sortedSet, pair{k, v})
+		sortedSet = append(sortedSet, wordCount{
+			word:  k,
+			count: v,
+		})
 	}
 
 	return sortPairs(sortedSet, reverse)
 }
 
-func sortPairs(pairs []pair, reverse bool) []pair {
+func sortPairs(pairs []wordCount, reverse bool) []wordCount {
 	sort.Slice(pairs, func(i, j int) bool {
 		if reverse {
 			return pairs[i].count < pairs[j].count

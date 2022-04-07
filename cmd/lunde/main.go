@@ -48,7 +48,6 @@ func main() {
 	logrus.Info("adding handlers and intents")
 	sess.AddHandler(srv.HandleMessageCreate)
 	sess.AddHandler(srv.HandleInteraction)
-	// sess.AddHandler(srv.HandleComponentInteraction)
 	sess.AddHandler(srv.HandleReactionAddInteraction)
 
 	sess.AddIntents(gateway.IntentGuilds)

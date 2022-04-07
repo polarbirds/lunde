@@ -101,8 +101,6 @@ func (srv *Server) HandleMessageCreate(c *gateway.MessageCreateEvent) {
 	srv.LastMessages[c.ChannelID] = c
 	srv.lastMessageWriteMutex.Unlock()
 
-	go srv.buildCountMessages([]discord.Message{c.Message})
-
 	if nicePattern.Match([]byte(c.Content)) {
 		var emojiAPIString discord.APIEmoji = "nice:536833842078810112"
 		if rand.Intn(2) == 1 {
@@ -128,6 +126,7 @@ func (srv *Server) HandleMessageCreate(c *gateway.MessageCreateEvent) {
 
 // HandleInteraction is a handler-function handling interaction-events
 func (srv *Server) HandleInteraction(ev *gateway.InteractionCreateEvent) {
+	// revive:disable-next-line:unnecessary-stmt
 	switch ev.Data.(type) {
 	case *discord.CommandInteraction:
 		data := ev.Data.(*discord.CommandInteraction)
