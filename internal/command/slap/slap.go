@@ -25,15 +25,13 @@ func CreateCommand(_ *server.Server) (cmd command.LundeCommand, err error) {
 			Name:        "slap",
 			Description: "slap someone with a trout",
 			Options: []discord.CommandOption{
-				{
-					Name:        "target",
-					Type:        discord.UserOption,
+				&discord.UserOption{
+					OptionName:  "target",
 					Description: "who to slap",
 					Required:    true,
 				},
-				{
-					Name: "reason",
-					Type: discord.StringOption,
+				&discord.StringOption{
+					OptionName: "reason",
 					Description: "optional addendum to the slap output, appended after `slaps " +
 						"<x> with a trout <addendum>",
 					Required: false,
@@ -45,7 +43,9 @@ func CreateCommand(_ *server.Server) (cmd command.LundeCommand, err error) {
 	return
 }
 
-func handleInteraction(event *gateway.InteractionCreateEvent, options map[string]string) (
+func handleInteraction(
+	event *gateway.InteractionCreateEvent, options map[string]discord.CommandInteractionOption,
+) (
 	response *api.InteractionResponseData, err error,
 ) {
 	det, adj, err := getAdjective()
@@ -54,9 +54,9 @@ func handleInteraction(event *gateway.InteractionCreateEvent, options map[string
 		return
 	}
 
-	targetSnowflake, err := discord.ParseSnowflake(options["target"])
+	targetSnowflake, err := options["target"].SnowflakeValue()
 	if err != nil {
-		err = fmt.Errorf("parsing target ID: %v", err)
+		err = fmt.Errorf("parsing target flake: %v", err)
 		return
 	}
 

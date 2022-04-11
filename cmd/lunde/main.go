@@ -9,6 +9,8 @@ import (
 
 	"github.com/diamondburned/arikawa/v3/gateway"
 	"github.com/diamondburned/arikawa/v3/session"
+	"github.com/polarbirds/lunde/internal/channelnames"
+	"github.com/polarbirds/lunde/internal/command/count"
 	"github.com/polarbirds/lunde/internal/command/define"
 	"github.com/polarbirds/lunde/internal/command/members"
 	"github.com/polarbirds/lunde/internal/command/promote"
@@ -21,8 +23,8 @@ import (
 	"github.com/sirupsen/logrus"
 )
 
-// CommandCreators is the list of handlers of the commands that are active
-var CommandCreators = []server.CreateCommand{
+// commandCreators is the list of handlers of the commands that are active
+var commandCreators = []server.CreateCommand{
 	reddit.CreateCommand,
 	slap.CreateCommand,
 	define.CreateCommand,
@@ -30,6 +32,7 @@ var CommandCreators = []server.CreateCommand{
 	promote.CreateCommand,
 	roles.CreateCommand,
 	members.CreateCommand,
+	count.CreateCommand,
 }
 
 func main() {
@@ -40,21 +43,18 @@ func main() {
 	}
 
 	logrus.Info("creating discord session")
-	sess, err := session.New("Bot " + srv.Token)
-	if err != nil {
-		logrus.Fatalf("error creating Discord session: %v", err)
-		return
-	}
+	sess := session.New("Bot " + srv.Token)
 
 	logrus.Info("adding handlers and intents")
-	sess.AddHandler(srv.MessageCreateHandler)
-	sess.AddHandler(srv.HandleCommandInteraction)
-	sess.AddHandler(srv.HandleComponentInteraction)
+	sess.AddHandler(srv.HandleMessageCreate)
+	sess.AddHandler(srv.HandleInteraction)
+	sess.AddHandler(srv.HandleReactionAddInteraction)
 
-	sess.Gateway.AddIntents(gateway.IntentGuilds)
-	sess.Gateway.AddIntents(gateway.IntentGuildMessages)
-	sess.Gateway.AddIntents(gateway.IntentGuildMessageReactions)
-	sess.Gateway.AddIntents(gateway.IntentDirectMessages)
+	sess.AddIntents(gateway.IntentGuilds)
+	sess.AddIntents(gateway.IntentGuildMessages)
+	sess.AddIntents(gateway.IntentGuildMessageReactions)
+	sess.AddIntents(gateway.IntentDirectMessages)
+	sess.AddIntents(gateway.IntentGuildMessageReactions)
 
 	logrus.Info("opening discord session")
 	err = sess.Open(context.Background())
@@ -66,10 +66,9 @@ func main() {
 	defer sess.Close()
 
 	logrus.Info("initializing server")
-	err = srv.Initialize(sess, CommandCreators)
+	err = srv.Initialize(sess, commandCreators)
 	if err != nil {
 		logrus.Fatalf("error initializing server: %v", err)
-		return
 	}
 
 	deletecommands := flag.Bool(
@@ -90,6 +89,12 @@ func main() {
 	}
 
 	go healthcheck.StartHandlerIfEnabled()
+
+	err = channelnames.StartScheduler(&srv)
+	if err != nil {
+		logrus.Fatalf("error starting channelnames scheduler: %v", err)
+	}
+	logrus.Info("channelnames scheduler started")
 
 	logrus.Info("Bot is now running.  Press CTRL-C to exit.")
 	sc := make(chan os.Signal, 1)

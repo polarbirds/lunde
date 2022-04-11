@@ -4,8 +4,8 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io/ioutil"
 	"net/http"
-	"strconv"
 	"strings"
 	"time"
 
@@ -14,7 +14,6 @@ import (
 	"github.com/diamondburned/arikawa/v3/gateway"
 	"github.com/diamondburned/arikawa/v3/session"
 	"github.com/diamondburned/arikawa/v3/utils/json/option"
-	"github.com/google/go-querystring/query"
 	"github.com/jzelinskie/geddit"
 	"github.com/polarbirds/lunde/internal/command"
 	"github.com/polarbirds/lunde/internal/server"
@@ -24,32 +23,42 @@ type redditHandler struct {
 	session *session.Session
 }
 
+func intToPtr(i int) *int {
+	return &i
+}
+
 // CreateCommand creates a LundeCommand which handles /reddit
 func CreateCommand(srv *server.Server) (cmd command.LundeCommand, err error) {
 	rh := redditHandler{srv.Session}
 	cmd = command.LundeCommand{
 		HandleInteraction: rh.handleInteraction,
 		CommandData: api.CreateCommandData{
-			Name:        "reddit",
-			Description: "fetches reddit posts the given subreddit sorted by the given parameters",
+			Name: "reddit",
+			Description: "fetches reddit posts the given subreddit sorted by the given " +
+				"parameters",
 			Options: []discord.CommandOption{
-				{
-					Name:        "sort",
-					Type:        discord.StringOption,
+				&discord.StringOption{
+					OptionName:  "sort",
 					Description: "what algorithm to sort posts by",
 					Required:    true,
-					Choices: []discord.CommandOptionChoice{
+					Choices: []discord.StringChoice{
 						{Name: "top", Value: "top"},
 						{Name: "hot", Value: "hot"},
 						{Name: "controversial", Value: "controversial"},
 						{Name: "random", Value: "random"},
 					},
 				},
-				{
-					Name:        "sub",
-					Type:        discord.StringOption,
+				&discord.StringOption{
+					OptionName:  "sub",
 					Description: "what subreddit to fetch from",
 					Required:    true,
+				},
+				&discord.IntegerOption{
+					OptionName:  "offset",
+					Description: "how many posts to skip",
+					Required:    false,
+					Min:         option.Int(intToPtr(0)),
+					Max:         option.Int(intToPtr(200)),
 				},
 			},
 		},
@@ -101,7 +110,7 @@ func embedMessage(resp *geddit.Submission) discord.Embed {
 
 func (rh *redditHandler) handleInteraction(
 	event *gateway.InteractionCreateEvent,
-	options map[string]string,
+	options map[string]discord.CommandInteractionOption,
 ) (
 	response *api.InteractionResponseData, err error,
 ) {
@@ -112,27 +121,22 @@ func (rh *redditHandler) handleInteraction(
 		return
 	}
 
-	var resp *geddit.Submission
-	var subreddit string
-	nrPost := 1
-	splits := strings.Split(options["sub"], " ")
-	subreddit = splits[0]
-	if len(splits) > 1 {
-		nrPost, err = strconv.Atoi(splits[1])
-		if err != nil {
-			return
-		}
+	subreddit := options["sub"].String()
+
+	offset, err := options["offset"].IntValue()
+	if err != nil {
+		err = fmt.Errorf("parsing int option: %v", err)
+		return
 	}
-	// make 0-indexed
-	nrPost--
 
 	// fy tr0n
-	if nrPost < 0 {
-		nrPost = 0
+	if offset < 0 {
+		offset = 0
 	}
 
-	resp, err = getPost(options["sort"], subreddit, nrPost)
+	resp, err := getPost(options["sort"].String(), subreddit, offset)
 	if err != nil {
+		err = fmt.Errorf("getting post: %v", err)
 		return
 	}
 
@@ -167,68 +171,52 @@ func (rh *redditHandler) handleInteraction(
 	return
 }
 
-func getPost(scheme string, subreddit string, nrPost int) (*geddit.Submission, error) {
-	// Set listing options
-	subOpts := geddit.ListingOptions{
-		Limit: nrPost + 1,
-		Count: nrPost + 1,
-	}
-
-	var submissions []*geddit.Submission
-	var err error
-
-	if subreddit == "" {
-		submissions, err = subredditSubmissions("", scheme, subOpts)
-	} else {
-		submissions, err = subredditSubmissions(subreddit, scheme, subOpts)
-	}
-
+func getPost(scheme string, subreddit string, offset int64) (*geddit.Submission, error) {
+	submissions, err := getSubredditSubmissions(subreddit, scheme, offset+1, offset+1)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("getting submissions: %v", err)
 	}
 
 	if len(submissions) < 1 {
 		return nil, fmt.Errorf("reddit returned no posts for subreddit %q", subreddit)
 	}
 
-	if len(submissions)-1 < nrPost {
+	if len(submissions)-1 < int(offset) {
 		return nil, fmt.Errorf("reddit did not return enough posts. "+
 			"Reddit returned %d post(s) for subreddit %q, user requested post #%d",
-			len(submissions), subreddit, nrPost)
+			len(submissions), subreddit, offset)
 	}
 
-	return submissions[nrPost], nil
+	return submissions[offset], nil
 }
 
-// ripped from github.com/jzelinskie/geddit, but now supports all of reddit's sorting-algorithms
-func subredditSubmissions(
-	subreddit string, sort string, params geddit.ListingOptions,
+func getSubredditSubmissions(
+	subreddit string, sort string, count int64, limit int64,
 ) ([]*geddit.Submission, error) {
-	v, err := query.Values(params)
-	if err != nil {
-		return nil, err
-	}
+	redditURL := fmt.Sprintf(
+		"https://www.reddit.com/r/%s/%s.json?count=%d&limit=%d",
+		subreddit, sort, count, limit)
 
-	baseURL := "https://www.reddit.com"
-
-	// If subbreddit given, add to URL
-	if subreddit != "" {
-		baseURL += "/r/" + subreddit
-	}
-
-	redditURL := fmt.Sprintf(baseURL+"/%s.json?%s", sort, v.Encode())
-
-	client := &http.Client{}
 	req, err := http.NewRequest("GET", redditURL, nil)
-	req.Header.Set("User-Agent", "lunde")
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("creating request: %v", err)
 	}
 
-	resp, err := client.Do(req)
+	req.Header.Set("User-Agent", "linux:lunde:1.0.0 (by /u/haraldfw) ")
 
+	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("doing request: %v", err)
+	}
+
+	defer resp.Body.Close()
+	bodyBytes, err := ioutil.ReadAll(resp.Body)
+	if err != nil {
+		return nil, fmt.Errorf("reading response body: %v", err)
+	}
+
+	if resp.StatusCode < 200 || resp.StatusCode > 299 {
+		return nil, fmt.Errorf("reddit returned unexpected non-200 response code %q", resp.Status)
 	}
 
 	type Response struct {
@@ -243,23 +231,23 @@ func subredditSubmissions(
 
 	if sort == "random" {
 		var postsRes []Response
-		err = json.NewDecoder(resp.Body).Decode(&postsRes)
+		err = json.Unmarshal(bodyBytes, &postsRes)
 		if err != nil {
-			return nil, err
+			return nil, fmt.Errorf("decoding response %q: %v", string(bodyBytes), err)
 		}
 
 		if len(postsRes) < 1 {
-			return nil, errors.New("invalid subreddit")
+			return nil, errors.New("no posts returned for subreddit")
 		}
 		r = postsRes[0]
 	} else {
-		var postsRes Response
-		err = json.NewDecoder(resp.Body).Decode(&postsRes)
+		var postRes Response
+		err = json.Unmarshal(bodyBytes, &postRes)
 		if err != nil {
-			return nil, err
+			return nil, fmt.Errorf("decoding response body %q: %v", string(bodyBytes), err)
 		}
 
-		r = postsRes
+		r = postRes
 	}
 
 	submissions := make([]*geddit.Submission, len(r.Data.Children))

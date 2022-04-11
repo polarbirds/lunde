@@ -28,21 +28,20 @@ func CreateCommand(srv *server.Server) (cmd command.LundeCommand, err error) {
 		HandleInteraction: th.handleInteraction,
 		CommandData: api.CreateCommandData{
 			Name:        "text",
-			Description: "corrupt or converts a given message or the last message",
+			Description: "corrupt or convert a given message, or the last message in the channel",
 			Options: []discord.CommandOption{
-				{
-					Name:        "algo",
-					Type:        discord.StringOption,
+				&discord.StringOption{
+					OptionName:  "algo",
 					Description: "what algorithm to convert/corrupt the text with",
 					Required:    true,
-					Choices: []discord.CommandOptionChoice{
+					Choices: []discord.StringChoice{
 						{Name: "spunge", Value: "spunge"},
 						{Name: "zalgo", Value: "zalgo"},
+						{Name: "chonk", Value: "chonk"},
 					},
 				},
-				{
-					Name:        "message",
-					Type:        discord.StringOption,
+				&discord.StringOption{
+					OptionName:  "message",
 					Description: "optional message to convert/corrupt",
 					Required:    false,
 				},
@@ -56,23 +55,23 @@ func CreateCommand(srv *server.Server) (cmd command.LundeCommand, err error) {
 // HandleText handles the text-command, converting/corrupting the given message in a way decided by
 // the value of algo
 func (th *textHandler) handleInteraction(
-	event *gateway.InteractionCreateEvent,
-	options map[string]string,
+	event *gateway.InteractionCreateEvent, options map[string]discord.CommandInteractionOption,
 ) (
 	response *api.InteractionResponseData, err error,
 ) {
-	msg := options["message"]
+	msg := options["message"].String()
 	if msg == "" {
-		if lastMsg, ok := th.srv.LastMessages[event.ChannelID]; ok {
-			msg = lastMsg.Content
-		} else {
+		lastMsg, messageFound := th.srv.LastMessages[event.ChannelID]
+		if !messageFound {
 			err = errors.New("found no message from options or in channel")
 			return
 		}
+
+		msg = lastMsg.Content
 	}
 
 	return &api.InteractionResponseData{
-		Content: option.NewNullableString(convert(msg, options["algo"])),
+		Content: option.NewNullableString(convert(msg, options["algo"].String())),
 	}, nil
 }
 
@@ -82,6 +81,8 @@ func convert(content string, algo string) string {
 		return zalgoPlz(content)
 	case "spunge":
 		return spungePlz(content)
+	case "chonk":
+		return chonkPlz(content)
 	default:
 		return content
 	}
@@ -119,6 +120,17 @@ func spungePlz(content string) string {
 			lastCharConverted = true
 		} else {
 			lastCharConverted = false
+		}
+	}
+	return string(contentRunes)
+}
+
+func chonkPlz(content string) string {
+	contentRunes := []rune(content)
+	for i, r := range contentRunes {
+		// if rune is ~alpha
+		if r >= 0x0021 && r <= 0x007E {
+			contentRunes[i] = r - 0x0041 + 0xFF21
 		}
 	}
 	return string(contentRunes)

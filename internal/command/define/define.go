@@ -2,6 +2,7 @@ package define
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io/ioutil"
 	"net/http"
@@ -32,28 +33,30 @@ func CreateCommand(_ *server.Server) (cmd command.LundeCommand, err error) {
 		HandleInteraction: handleInteraction,
 		CommandData: api.CreateCommandData{
 			Name: "define",
-			Description: "fetch a definition of a word of phrase from a reputable and renowned " +
-				"source of knowledge",
+			Description: "fetch a definition of a word of phrase from a reputable and " +
+				"renowned source of knowledge",
 			Options: []discord.CommandOption{
-				{
-					Name:        "term",
-					Type:        discord.StringOption,
+				&discord.StringOption{
+					OptionName:  "term",
 					Description: "term to fetch definition for",
 					Required:    true,
 				},
 			},
 		},
 	}
-
 	return
 }
 
-func handleInteraction(_ *gateway.InteractionCreateEvent, options map[string]string) (
+func handleInteraction(
+	_ *gateway.InteractionCreateEvent,
+	options map[string]discord.CommandInteractionOption,
+) (
 	response *api.InteractionResponseData, err error,
 ) {
 	term := options["term"]
 	var res *http.Response
-	res, err = http.Get("http://api.urbandictionary.com/v0/define?term=" + url.QueryEscape(term))
+	res, err = http.Get("http://api.urbandictionary.com/v0/define?term=" +
+		url.QueryEscape(term.String()))
 	if err != nil {
 		err = fmt.Errorf("error contacting define server: %v", err)
 		return
@@ -73,7 +76,7 @@ func handleInteraction(_ *gateway.InteractionCreateEvent, options map[string]str
 	var udRes udResponse
 	err = json.Unmarshal(bodBytes, &udRes)
 	if err != nil {
-		err = fmt.Errorf("no definitions found")
+		err = errors.New("no definitions found")
 		return
 	}
 

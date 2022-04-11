@@ -23,27 +23,31 @@ func CreateCommand(srv *server.Server) (cmd command.LundeCommand, err error) {
 	cmd = command.LundeCommand{
 		HandleInteraction: mh.handleInteraction,
 		CommandData: api.CreateCommandData{
-			Name: 		 "members",
+			Name:        "members",
 			Description: "Check the members of a role",
 			Options: []discord.CommandOption{
-				{
-					Name: 		 "role",
-					Type: 		 discord.RoleOption,
+				&discord.RoleOption{
+					OptionName:  "role",
 					Description: "role to check members for",
-					Required: 	 true,
+					Required:    true,
 				},
 			},
 		},
 	}
-	
+
 	return
 }
 
 func (mh *memberHandler) handleInteraction(
-	event *gateway.InteractionCreateEvent, options map[string]string) (
+	event *gateway.InteractionCreateEvent, options map[string]discord.CommandInteractionOption,
+) (
 	response *api.InteractionResponseData, err error,
 ) {
-	roleStr := options["role"]
+	roleFlake, err := options["role"].SnowflakeValue()
+	if err != nil {
+		err = fmt.Errorf("parsing role as flake: %v", err)
+		return
+	}
 
 	guild, err := mh.session.Guild(event.GuildID)
 	if err != nil {
@@ -58,7 +62,7 @@ func (mh *memberHandler) handleInteraction(
 	}
 
 	roles := guild.Roles
-	role := fetchRole(roles, roleStr)
+	role := fetchRole(roles, discord.RoleID(roleFlake))
 
 	members := fetchMembers(role, guildMembers)
 
@@ -68,16 +72,14 @@ func (mh *memberHandler) handleInteraction(
 	return
 }
 
-func fetchRole(roles []discord.Role, roleStr string) (
-	role discord.Role,
-) {
+func fetchRole(roles []discord.Role, roleID discord.RoleID) (role discord.Role) {
 	for _, r := range roles {
-		if r.ID.String() == roleStr {
+		if r.ID == roleID {
 			role = r
 			break
 		}
 	}
-	
+
 	return
 }
 
@@ -85,8 +87,8 @@ func fetchMembers(role discord.Role, guildMembers []discord.Member) (
 	members []string,
 ) {
 	for _, m := range guildMembers {
-		for _, roleId := range m.RoleIDs {
-			if roleId == role.ID {
+		for _, roleID := range m.RoleIDs {
+			if roleID == role.ID {
 				userStr := "@" + m.User.Username
 				if m.Nick != "" {
 					userStr += " (" + m.Nick + ")"
@@ -100,7 +102,7 @@ func fetchMembers(role discord.Role, guildMembers []discord.Member) (
 
 func formatMessage(members []string, role discord.Role) (msg string) {
 	sort.Strings(members)
-	
+
 	msg = fmt.Sprintf("Members in role %s:\n```", role.Name)
 
 	for _, m := range members {
