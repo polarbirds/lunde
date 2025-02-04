@@ -109,6 +109,9 @@ lint:
 mod:
 	./build/mod.sh
 
+mod-update:
+	go get -u -t ./...
+
 build-dirs:
 	@mkdir -p bin/$(ARCH)
 	@mkdir -p .go/src/$(PKG) .go/pkg .go/bin .go/std/$(ARCH)
